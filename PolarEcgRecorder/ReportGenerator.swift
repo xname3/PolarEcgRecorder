@@ -167,19 +167,25 @@ class ReportGenerator {
                 cgc2.fill(CGRect(x: 0, y: 0, width: W, height: 6))
 
                 var ey = M
-                attr("UDALOSŤ \(evNum + 1) / \(eventIndices.count)",
-                     font: .boldSystemFont(ofSize: 16), color: .systemOrange)
+                let eventTime = dateFromPolarTimestamp(ecg[evIdx].timestamp)
+                let df = DateFormatter()
+                df.dateStyle = .medium
+                df.timeStyle = .medium
+                let eventTimeStr = df.string(from: eventTime)
+
+                attr("UDALOSŤ \(evNum + 1) / \(eventIndices.count)   •   \(eventTimeStr)",
+                     font: .boldSystemFont(ofSize: 15), color: .systemOrange)
                     .draw(at: CGPoint(x: M, y: ey)); ey += 22
 
-                attr("ECG okno: 60 sekúnd pred udalosťou (▼) a 60 sekúnd po nej  •  130 Hz  •  jednotky µV",
+                attr("ECG okno: 30 sekúnd pred udalosťou (▼) a 15 sekúnd po nej  •  130 Hz  •  jednotky µV",
                      font: .systemFont(ofSize: 9), color: .secondaryLabel)
                     .draw(at: CGPoint(x: M, y: ey)); ey += 18
 
                 hLine(ctx: cgc2, x: M, y: ey, w: CW); ey += 12
 
-                // Extract ±60 s = ±7800 samples at index level
-                let before = 130 * 60
-                let after  = 130 * 60
+                // Extract 30 s before and 15 s after at index level
+                let before = 130 * 30
+                let after  = 130 * 15
                 let start  = max(0, evIdx - before)
                 let end    = min(ecg.count - 1, evIdx + after)
                 let window = Array(ecg[start...end])
@@ -195,18 +201,25 @@ class ReportGenerator {
                     let stripEnd = min(stripStart + stripSamples, window.count)
                     let strip    = Array(window[stripStart..<stripEnd])
                     let secLabel = (stripStart - eventPosInWindow) / 130  // signed seconds relative to event
-                    let labelStr = "\(secLabel >= 0 ? "+" : "")\(secLabel)s"
+                    
+                    let sampleIdx = start + stripStart
+                    let stripTime = dateFromPolarTimestamp(ecg[sampleIdx].timestamp)
+                    let tf = DateFormatter()
+                    tf.dateFormat = "HH:mm:ss"
+                    let timeStr = tf.string(from: stripTime)
+                    
+                    let labelStr = "\(secLabel >= 0 ? "+" : "")\(secLabel)s\n\(timeStr)"
                     let hasEvent = (stripStart...stripEnd).contains(eventPosInWindow)
                     let evXFrac: CGFloat? = hasEvent
                         ? CGFloat(eventPosInWindow - stripStart) / CGFloat(strip.count)
                         : nil
 
                     // Time label
-                    attr(labelStr, font: .monospacedSystemFont(ofSize: 7, weight: .regular),
+                    attr(labelStr, font: .monospacedSystemFont(ofSize: 6.5, weight: .regular),
                          color: .secondaryLabel)
                         .draw(at: CGPoint(x: M, y: ey + 4))
 
-                    let rect = CGRect(x: M + 28, y: ey, width: CW - 28, height: stripH)
+                    let rect = CGRect(x: M + 36, y: ey, width: CW - 36, height: stripH)
                     drawECGStrip(samples: strip.map { Double($0.microVolts) },
                                  ctx: cgc2, rect: rect,
                                  eventXFraction: evXFrac)
@@ -421,6 +434,12 @@ class ReportGenerator {
 
     private static func fmtDur(_ t: TimeInterval) -> String {
         String(format: "%02d:%02d:%02d", Int(t)/3600, (Int(t)%3600)/60, Int(t)%60)
+    }
+
+    // Converts Unix epoch timestamp (ms) to Date
+    private static func dateFromPolarTimestamp(_ ts: UInt64) -> Date {
+        let seconds = Double(ts) / 1000.0
+        return Date(timeIntervalSince1970: seconds)
     }
 
     private static func hrvInterpretation(_ rmssd: Double) -> String {

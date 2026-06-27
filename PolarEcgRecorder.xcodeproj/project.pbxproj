@@ -9,6 +9,13 @@
 /* Begin PBXBuildFile section */
 		04DF0A9A2FEFBDEA005104BD /* PolarBleSdk in Frameworks */ = {isa = PBXBuildFile; productRef = 04DF0A992FEFBDEA005104BD /* PolarBleSdk */; };
 		04DF0A9D2FEFC051005104BD /* RxSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 04DF0A9C2FEFC051005104BD /* RxSwift */; };
+		18038BC8267862AD6B897483 /* EcgActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E08388E406AA9F1E14C4D40 /* EcgActivityAttributes.swift */; };
+		41BB5AA8653133408AEF0599 /* EcgWidget.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 84C329212365078CD2A56059 /* EcgWidget.appex */; };
+		55C30CB4F00ECF9F9FE172BF /* MarkEventIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CCA2D4C6BBC1FFD400512A7 /* MarkEventIntent.swift */; };
+		B63AD4C0DC10DC3C0AE3749F /* EcgWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CF0CCB1F725B966D5D9C386 /* EcgWidgetBundle.swift */; };
+		C61225D327E6F95DE43EDE82 /* EcgWidgetLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00F6A292B97E86738324A346 /* EcgWidgetLiveActivity.swift */; };
+		E2C55C12F13D2423BF4022DD /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A7E2EAEEA7911FC75A0D1E4F /* Foundation.framework */; };
+		FBD8EB2A59BE2524EEC711E3 /* EcgActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E08388E406AA9F1E14C4D40 /* EcgActivityAttributes.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -26,27 +33,60 @@
 			remoteGlobalIDString = 04DF0A552FEFB01A005104BD;
 			remoteInfo = PolarEcgRecorder;
 		};
+		89BF002DC1C55DD5B25AD77F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 04DF0A4E2FEFB01A005104BD /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8EF325C803477983CF68652A;
+			remoteInfo = EcgWidget;
+		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		BB91F276F6BCBDDB5F4D690C /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				41BB5AA8653133408AEF0599 /* EcgWidget.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		00F6A292B97E86738324A346 /* EcgWidgetLiveActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EcgWidgetLiveActivity.swift; sourceTree = "<group>"; };
 		04DF0A562FEFB01A005104BD /* PolarEcgRecorder.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PolarEcgRecorder.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		04DF0A652FEFB01B005104BD /* PolarEcgRecorderTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PolarEcgRecorderTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		04DF0A6F2FEFB01B005104BD /* PolarEcgRecorderUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PolarEcgRecorderUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		3CF0CCB1F725B966D5D9C386 /* EcgWidgetBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EcgWidgetBundle.swift; sourceTree = "<group>"; };
+		4E08388E406AA9F1E14C4D40 /* EcgActivityAttributes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EcgActivityAttributes.swift; sourceTree = "<group>"; };
+		84C329212365078CD2A56059 /* EcgWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; name = EcgWidget.appex; path = EcgWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		9CCA2D4C6BBC1FFD400512A7 /* MarkEventIntent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MarkEventIntent.swift; sourceTree = "<group>"; };
+		A7E2EAEEA7911FC75A0D1E4F /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		04DF0A582FEFB01A005104BD /* PolarEcgRecorder */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = PolarEcgRecorder;
 			sourceTree = "<group>";
 		};
 		04DF0A682FEFB01B005104BD /* PolarEcgRecorderTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = PolarEcgRecorderTests;
 			sourceTree = "<group>";
 		};
 		04DF0A722FEFB01B005104BD /* PolarEcgRecorderUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = PolarEcgRecorderUITests;
 			sourceTree = "<group>";
 		};
@@ -76,6 +116,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		2967EC186B19A7E0BB71D60B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E2C55C12F13D2423BF4022DD /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -86,6 +134,8 @@
 				04DF0A682FEFB01B005104BD /* PolarEcgRecorderTests */,
 				04DF0A722FEFB01B005104BD /* PolarEcgRecorderUITests */,
 				04DF0A572FEFB01A005104BD /* Products */,
+				4D74CA4834F22FCAA27AF1E6 /* Frameworks */,
+				A561F7532E495C946F39DFFE /* EcgWidget */,
 			);
 			sourceTree = "<group>";
 		};
@@ -95,8 +145,36 @@
 				04DF0A562FEFB01A005104BD /* PolarEcgRecorder.app */,
 				04DF0A652FEFB01B005104BD /* PolarEcgRecorderTests.xctest */,
 				04DF0A6F2FEFB01B005104BD /* PolarEcgRecorderUITests.xctest */,
+				84C329212365078CD2A56059 /* EcgWidget.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		4D74CA4834F22FCAA27AF1E6 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				96313B66A5438F2ADB8AB476 /* iOS */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		96313B66A5438F2ADB8AB476 /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				A7E2EAEEA7911FC75A0D1E4F /* Foundation.framework */,
+			);
+			name = iOS;
+			sourceTree = "<group>";
+		};
+		A561F7532E495C946F39DFFE /* EcgWidget */ = {
+			isa = PBXGroup;
+			children = (
+				3CF0CCB1F725B966D5D9C386 /* EcgWidgetBundle.swift */,
+				00F6A292B97E86738324A346 /* EcgWidgetLiveActivity.swift */,
+				9CCA2D4C6BBC1FFD400512A7 /* MarkEventIntent.swift */,
+				4E08388E406AA9F1E14C4D40 /* EcgActivityAttributes.swift */,
+			);
+			path = EcgWidget;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -109,10 +187,12 @@
 				04DF0A522FEFB01A005104BD /* Sources */,
 				04DF0A532FEFB01A005104BD /* Frameworks */,
 				04DF0A542FEFB01A005104BD /* Resources */,
+				BB91F276F6BCBDDB5F4D690C /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				507E35D5864ADDF8C93A1B57 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				04DF0A582FEFB01A005104BD /* PolarEcgRecorder */,
@@ -143,8 +223,6 @@
 				04DF0A682FEFB01B005104BD /* PolarEcgRecorderTests */,
 			);
 			name = PolarEcgRecorderTests;
-			packageProductDependencies = (
-			);
 			productName = PolarEcgRecorderTests;
 			productReference = 04DF0A652FEFB01B005104BD /* PolarEcgRecorderTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -166,11 +244,26 @@
 				04DF0A722FEFB01B005104BD /* PolarEcgRecorderUITests */,
 			);
 			name = PolarEcgRecorderUITests;
-			packageProductDependencies = (
-			);
 			productName = PolarEcgRecorderUITests;
 			productReference = 04DF0A6F2FEFB01B005104BD /* PolarEcgRecorderUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		8EF325C803477983CF68652A /* EcgWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 043FF148C76051C57E3C5352 /* Build configuration list for PBXNativeTarget "EcgWidget" */;
+			buildPhases = (
+				7E4E622AC823F296F795D31D /* Sources */,
+				2967EC186B19A7E0BB71D60B /* Frameworks */,
+				E46309C4870C0AA71F602E3B /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = EcgWidget;
+			productName = EcgWidget;
+			productReference = 84C329212365078CD2A56059 /* EcgWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -216,6 +309,7 @@
 				04DF0A552FEFB01A005104BD /* PolarEcgRecorder */,
 				04DF0A642FEFB01B005104BD /* PolarEcgRecorderTests */,
 				04DF0A6E2FEFB01B005104BD /* PolarEcgRecorderUITests */,
+				8EF325C803477983CF68652A /* EcgWidget */,
 			);
 		};
 /* End PBXProject section */
@@ -242,6 +336,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E46309C4870C0AA71F602E3B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -249,6 +350,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FBD8EB2A59BE2524EEC711E3 /* EcgActivityAttributes.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -266,6 +368,17 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		7E4E622AC823F296F795D31D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B63AD4C0DC10DC3C0AE3749F /* EcgWidgetBundle.swift in Sources */,
+				C61225D327E6F95DE43EDE82 /* EcgWidgetLiveActivity.swift in Sources */,
+				55C30CB4F00ECF9F9FE172BF /* MarkEventIntent.swift in Sources */,
+				18038BC8267862AD6B897483 /* EcgActivityAttributes.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -278,6 +391,12 @@
 			isa = PBXTargetDependency;
 			target = 04DF0A552FEFB01A005104BD /* PolarEcgRecorder */;
 			targetProxy = 04DF0A702FEFB01B005104BD /* PBXContainerItemProxy */;
+		};
+		507E35D5864ADDF8C93A1B57 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = EcgWidget;
+			target = 8EF325C803477983CF68652A /* EcgWidget */;
+			targetProxy = 89BF002DC1C55DD5B25AD77F /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -412,8 +531,10 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "App needs Bluetooth to connect Polar H10";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIBackgroundModes = "bluetooth-central";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -445,8 +566,10 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "App needs Bluetooth to connect Polar H10";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIBackgroundModes = "bluetooth-central";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -547,9 +670,59 @@
 			};
 			name = Release;
 		};
+		962202606CF8E7CFD2730EAC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				DEVELOPMENT_TEAM = 3RA6WSYD2R;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = EcgWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = mm4fStudio.PolarEcgRecorder.EcgWidget;
+				PRODUCT_NAME = EcgWidget;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		F91CC1503C4BEFC4D8A560DC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				DEVELOPMENT_TEAM = 3RA6WSYD2R;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = EcgWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = mm4fStudio.PolarEcgRecorder.EcgWidget;
+				PRODUCT_NAME = EcgWidget;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		043FF148C76051C57E3C5352 /* Build configuration list for PBXNativeTarget "EcgWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				962202606CF8E7CFD2730EAC /* Release */,
+				F91CC1503C4BEFC4D8A560DC /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		04DF0A512FEFB01A005104BD /* Build configuration list for PBXProject "PolarEcgRecorder" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

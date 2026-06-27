@@ -95,24 +95,41 @@ class StorageManager {
     }
 
     // MARK: - Event tag
-    private func consumeEventTag() -> String {
-        guard let s = eventState, s.isEventMarked else { return "" }
-        DispatchQueue.main.async { s.isEventMarked = false }
-        return "EVENT"
+    private var ecgEventTimestamp: UInt64? = nil
+    private var hrEventTimestamp: UInt64? = nil
+
+    func markEvent() {
+        let ts = UInt64(Date().timeIntervalSince1970 * 1000)
+        ioQ.async {
+            self.ecgEventTimestamp = ts
+            self.hrEventTimestamp = ts
+        }
+    }
+
+    private func consumeEcgEventTag(for ts: UInt64) -> String {
+        guard let et = ecgEventTimestamp else { return "" }
+        if ts >= et { ecgEventTimestamp = nil; return "EVENT" }
+        return ""
+    }
+
+    private func consumeHrEventTag(for ts: UInt64) -> String {
+        guard let et = hrEventTimestamp else { return "" }
+        if ts >= et { hrEventTimestamp = nil; return "EVENT" }
+        return ""
     }
 
     // MARK: - Append helpers
     func appendECG(timestamp: UInt64, microVolts: Int32) {
         ioQ.async {
             self.rotateIfNeeded()
-            let tag = self.consumeEventTag()
+            let tag = self.consumeEcgEventTag(for: timestamp)
             self.write("\(timestamp),\(microVolts),\(tag)\n", to: self.ecgHandle)
         }
     }
 
     func appendHR(timestamp: UInt64, bpm: UInt8) {
         ioQ.async {
-            let tag = self.consumeEventTag()
+            let tag = self.consumeHrEventTag(for: timestamp)
             self.write("\(timestamp),\(bpm),\(tag)\n", to: self.hrHandle)
         }
     }
@@ -154,9 +171,15 @@ class StorageManager {
             default: break
             }
         }
-        return groups.values.sorted { $0.sessionKey > $1.sessionKey }
+        return groups.values.filter { !$0.allURLs.isEmpty }.sorted { $0.sessionKey > $1.sessionKey }
     }
 
     func deleteFile(at url: URL)            { try? FileManager.default.removeItem(at: url) }
-    func deleteGroup(_ g: SessionGroup)     { g.allURLs.forEach { deleteFile(at: $0) } }
+    func deleteGroup(_ g: SessionGroup) {
+        g.allURLs.forEach { deleteFile(at: $0) }
+        
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let pdfURL = docs.appendingPathComponent("ECG_Report_\(g.sessionKey).pdf")
+        deleteFile(at: pdfURL)
+    }
 }

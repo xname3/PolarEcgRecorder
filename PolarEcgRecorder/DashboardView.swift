@@ -141,7 +141,7 @@ struct DashboardView: View {
                         Text("Recording: \(formattedDuration)")
                             .font(.system(.body, design: .monospaced)).foregroundColor(.green)
                     } else if polarManager.isEventRecording {
-                        Text("⚠️ SAVING EVENT (−1 min / +1 min)…")
+                        Text("⚠️ SAVING EVENT (−30 s / +15 s)…")
                             .font(.system(.body, design: .monospaced)).foregroundColor(.orange).bold()
                     } else {
                         Text("Live Preview (5 s)").font(.subheadline).foregroundColor(.gray)
@@ -153,6 +153,7 @@ struct DashboardView: View {
                 // ── MARK EVENT ───────────────────────────────────────────────
                 Button {
                     eventState.triggerEvent()
+                    StorageManager.shared.markEvent()
                     UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
                     if !polarManager.isStreaming { polarManager.startEventRecordingWindow() }
                 } label: {
