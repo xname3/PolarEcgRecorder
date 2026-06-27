@@ -1,139 +1,184 @@
 import SwiftUI
 import UIKit
 
-// 💡 Pomocná štruktúra, aby sme mohli použiť bezpečnejší .sheet(item:)
 struct ShareableFile: Identifiable {
     let id = UUID()
     let url: URL
 }
 
 struct HistoryView: View {
-    @State private var savedFiles: [URL] = []
-    
-    // 🚨 ZMENA: Namiesto dvoch premenných (Bool a URL) držíme iba jeden stav
+    @State private var sessions: [SessionGroup] = []
     @State private var fileToShare: ShareableFile? = nil
-    
+    @State private var isGeneratingPDF = false
+    @State private var deleteAlert: SessionGroup? = nil
+
     var body: some View {
         List {
-            if savedFiles.isEmpty {
-                Section {
-                    HStack {
-                        Spacer()
-                        VStack(spacing: 10) {
-                            Image(systemName: "folder.badge.questionmark")
-                                .font(.system(size: 40))
-                                .foregroundColor(.gray)
-                            Text("Žiadne uložené záznamy")
-                                .font(.headline)
-                                .foregroundColor(.gray)
-                        }
-                        .padding(.vertical, 40)
-                        Spacer()
-                    }
-                }
+            if sessions.isEmpty {
+                emptyState
             } else {
-                ForEach(savedFiles, id: \.self) { fileURL in
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(fileURL.lastPathComponent)
-                                .font(.system(.body, design: .monospaced))
-                                .lineLimit(1)
-                            
-                            Text(getFileSize(url: fileURL))
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                        }
-                        
-                        Spacer()
-                        
-                        // Tlačidlo zdieľania
-                        Button(action: {
-                            prepareAndShare(fileURL: fileURL)
-                        }) {
-                            Image(systemName: "square.and.arrow.up")
-                                .font(.title3)
-                                .foregroundColor(.blue)
-                        }
-                        .buttonStyle(.borderless)
-                    }
-                    .padding(.vertical, 4)
+                ForEach(sessions) { group in
+                    SessionGroupRow(
+                        group: group,
+                        onGeneratePDF: { generatePDF(for: group) },
+                        onShareFile:   { share(url: $0) },
+                        onDelete:      { deleteAlert = group }
+                    )
                 }
-                .onDelete(perform: deleteItems)
             }
         }
         .navigationTitle("História meraní")
-        .onAppear {
-            loadFiles()
+        .onAppear { reload() }
+        .sheet(item: $fileToShare, onDismiss: cleanTemp) { f in
+            ActivityViewController(activityItems: [f.url])
         }
-        // 🚨 FIX ČIERNEJ OBRAZOVKY: Sheet sa otvorí AŽ vtedy, keď fileToShare nie je nil
-        .sheet(item: $fileToShare, onDismiss: { cleanTemporaryFiles() }) { shareable in
-            ActivityViewController(activityItems: [shareable.url])
+        .alert("Vymazať session?", isPresented: showDeleteAlert, presenting: deleteAlert) { g in
+            Button("Vymazať", role: .destructive) {
+                StorageManager.shared.deleteGroup(g); reload()
+            }
+            Button("Zrušiť", role: .cancel) {}
+        } message: { g in
+            Text("Vymažú sa všetky súbory pre \(g.displayName).")
         }
-    }
-    
-    private func loadFiles() {
-        savedFiles = StorageManager.shared.getAllSavedFiles()
-    }
-    
-    private func deleteItems(at offsets: IndexSet) {
-        for index in offsets {
-            let fileURL = savedFiles[index]
-            StorageManager.shared.deleteSession(at: fileURL)
-        }
-        savedFiles.remove(atOffsets: offsets)
-    }
-    
-    // Príprava súboru v temporary adresári
-    private func prepareAndShare(fileURL: URL) {
-        let fileManager = FileManager.default
-        let tempDirectory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-        let tempFileURL = tempDirectory.appendingPathComponent(fileURL.lastPathComponent)
-        
-        try? fileManager.removeItem(at: tempFileURL)
-        
-        do {
-            try fileManager.copyItem(at: fileURL, to: tempFileURL)
-            print("✅ Súbor úspešne skopírovaný do temp zóny pre zdieľanie: \(tempFileURL.lastPathComponent)")
-            
-            // Priradenie sem okamžite a plynule vyvolá sheet so správnymi dátami
-            self.fileToShare = ShareableFile(url: tempFileURL)
-        } catch {
-            print("❌ Chyba pri príprave súboru na zdieľanie: \(error)")
-            self.fileToShare = ShareableFile(url: fileURL)
+        .overlay {
+            if isGeneratingPDF {
+                ZStack {
+                    Color.black.opacity(0.45).ignoresSafeArea()
+                    VStack(spacing: 14) {
+                        ProgressView().scaleEffect(1.4).tint(.white)
+                        Text("Generujem PDF správu…").foregroundColor(.white).font(.headline)
+                    }
+                    .padding(28)
+                    .background(RoundedRectangle(cornerRadius: 18).fill(Color(.systemGray)))
+                }
+            }
         }
     }
-    
-    private func cleanTemporaryFiles() {
-        if let url = fileToShare?.url {
-            try? FileManager.default.removeItem(at: url)
+
+    private var showDeleteAlert: Binding<Bool> {
+        .init(get: { deleteAlert != nil }, set: { if !$0 { deleteAlert = nil } })
+    }
+
+    @ViewBuilder
+    private var emptyState: some View {
+        Section {
+            HStack {
+                Spacer()
+                VStack(spacing: 10) {
+                    Image(systemName: "folder.badge.questionmark").font(.system(size: 40)).foregroundColor(.gray)
+                    Text("Žiadne uložené záznamy").font(.headline).foregroundColor(.gray)
+                }
+                .padding(.vertical, 40)
+                Spacer()
+            }
         }
+    }
+
+    private func reload() { sessions = StorageManager.shared.getGroupedSessions() }
+
+    private func generatePDF(for group: SessionGroup) {
+        isGeneratingPDF = true
+        ReportGenerator.generate(group: group) { url in
+            isGeneratingPDF = false
+            if let url { fileToShare = ShareableFile(url: url) }
+        }
+    }
+
+    private func share(url: URL) {
+        let tmp = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(url.lastPathComponent)
+        try? FileManager.default.removeItem(at: tmp)
+        if (try? FileManager.default.copyItem(at: url, to: tmp)) != nil {
+            fileToShare = ShareableFile(url: tmp)
+        } else {
+            fileToShare = ShareableFile(url: url)
+        }
+    }
+
+    private func cleanTemp() {
+        if let url = fileToShare?.url { try? FileManager.default.removeItem(at: url) }
         fileToShare = nil
-    }
-    
-    private func getFileSize(url: URL) -> String {
-        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
-              let fileSize = attributes[.size] as? Int64 else {
-            return "Neznáma veľkosť"
-        }
-        
-        let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useKB, .useMB]
-        formatter.countStyle = .file
-        return formatter.string(fromByteCount: fileSize)
     }
 }
 
-// MARK: - UIKit Activity View Wrapper
+// MARK: - Session Group Row
+struct SessionGroupRow: View {
+    let group: SessionGroup
+    let onGeneratePDF: () -> Void
+    let onShareFile:   (URL) -> Void
+    let onDelete:      () -> Void
+
+    @State private var expanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 12) {
+                Image(systemName: "waveform.path.ecg.rectangle.fill")
+                    .foregroundColor(.red).font(.title3)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(group.displayName)
+                        .font(.system(.subheadline, design: .rounded)).fontWeight(.semibold)
+                    Text("\(group.allURLs.count) súbory  •  \(group.totalSizeString)")
+                        .font(.caption).foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                // PDF button
+                Button(action: onGeneratePDF) {
+                    Label("PDF", systemImage: "doc.richtext.fill")
+                        .labelStyle(.iconOnly)
+                        .font(.title3).foregroundColor(.blue)
+                }
+                .buttonStyle(.borderless)
+
+                // Expand
+                Button { withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() } } label: {
+                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                        .foregroundColor(.secondary).font(.caption)
+                }
+                .buttonStyle(.borderless)
+            }
+            .padding(.vertical, 8)
+
+            if expanded {
+                VStack(spacing: 6) {
+                    if let u = group.ecgURL { FileRow(url: u, icon: "waveform",      color: .red,    onShare: onShareFile) }
+                    if let u = group.hrURL  { FileRow(url: u, icon: "heart.fill",   color: .red,    onShare: onShareFile) }
+                    if let u = group.hrvURL { FileRow(url: u, icon: "chart.xyaxis.line", color: .indigo, onShare: onShareFile) }
+                }
+                .padding(.leading, 36).padding(.bottom, 8)
+            }
+        }
+        .swipeActions(edge: .trailing) {
+            Button(role: .destructive, action: onDelete) { Label("Vymazať", systemImage: "trash") }
+            Button(action: onGeneratePDF) { Label("PDF", systemImage: "doc.richtext.fill") }.tint(.blue)
+        }
+    }
+}
+
+struct FileRow: View {
+    let url: URL; let icon: String; let color: Color
+    let onShare: (URL) -> Void
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon).foregroundColor(color).font(.caption).frame(width: 16)
+            Text(url.lastPathComponent).font(.caption).foregroundColor(.secondary).lineLimit(1)
+            Spacer()
+            Button { onShare(url) } label: {
+                Image(systemName: "square.and.arrow.up").font(.caption).foregroundColor(.blue)
+            }.buttonStyle(.borderless)
+        }
+    }
+}
+
+// MARK: - UIKit share sheet wrapper
 struct ActivityViewController: UIViewControllerRepresentable {
     var activityItems: [Any]
-    var applicationActivities: [UIActivity]? = nil
-
-    func makeUIViewController(context: UIViewControllerRepresentableContext<ActivityViewController>) -> UIActivityViewController {
-        let controller = UIActivityViewController(activityItems: activityItems, applicationActivities: applicationActivities)
-        // Vylúčenie shareplay, aby systém netlačil Collaboration režimy
-        controller.excludedActivityTypes = [.sharePlay]
-        return controller
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let vc = UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+        vc.excludedActivityTypes = [.sharePlay]
+        return vc
     }
-
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: UIViewControllerRepresentableContext<ActivityViewController>) {}
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }

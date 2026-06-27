@@ -1,161 +1,162 @@
 import Foundation
-import Combine
 import SwiftUI
+import Combine
+
+// MARK: - Session Group (ECG + HR + HRV trojica súborov)
+struct SessionGroup: Identifiable {
+    let id = UUID()
+    let sessionKey: String          // "2025-01-15_14-30-00"
+    var ecgURL: URL?
+    var hrURL:  URL?
+    var hrvURL: URL?
+
+    var allURLs: [URL] { [ecgURL, hrURL, hrvURL].compactMap { $0 } }
+
+    var sessionDate: Date {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+        return f.date(from: sessionKey) ?? .distantPast
+    }
+
+    var displayName: String {
+        let f = DateFormatter(); f.dateStyle = .medium; f.timeStyle = .medium
+        return f.string(from: sessionDate)
+    }
+
+    var totalSizeString: String {
+        let bytes = allURLs.reduce(Int64(0)) { acc, url in
+            let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64) ?? 0
+            return acc + size
+        }
+        let fmt = ByteCountFormatter()
+        fmt.allowedUnits = [.useKB, .useMB]; fmt.countStyle = .file
+        return fmt.string(fromByteCount: bytes)
+    }
+}
 
 // MARK: - Event Marker
 class EventState: ObservableObject {
     @Published var isEventMarked: Bool = false
-    
-    // Oprava: Zaistíme, že zápis do @Published prebehne vždy na hlavnom vlákne
+
     @MainActor
-    func triggerEvent() {
-        self.isEventMarked = true
-    }
+    func triggerEvent() { isEventMarked = true }
 }
 
 // MARK: - Storage Manager
 class StorageManager {
     static let shared = StorageManager()
-    
     var eventState: EventState?
-    
-    private var ecgFileHandle: FileHandle?
-    private var hrFileHandle: FileHandle?
-    // ACC FileHandle bol vymazaný
-    
-    private var currentSessionStartTime: Date?
-    private let splitInterval: TimeInterval = 3600 // 1 hodina
-    
-    private let ioQueue = DispatchQueue(label: "com.ecgpolar.ioqueue", qos: .background)
-    
+
+    private var ecgHandle: FileHandle?
+    private var hrHandle:  FileHandle?
+    private var rrHandle:  FileHandle?          // NEW: HRV/RR file
+
+    private var sessionStart: Date?
+    private let splitInterval: TimeInterval = 3600
+    private let ioQ = DispatchQueue(label: "com.ecgpolar.io", qos: .background)
+
     private init() {}
-    
-    func startNewSession() {
-        ioQueue.async {
-            self.internalStartNewSession()
-        }
-    }
-    
-    func stopSession() {
-        ioQueue.async {
-            self.internalStopSession()
-        }
-    }
-    
-    private func internalStartNewSession() {
-        internalStopSession()
+
+    // MARK: - Session lifecycle
+    func startNewSession() { ioQ.async { self.internalStart() } }
+    func stopSession()      { ioQ.async { self.internalStop()  } }
+
+    private func internalStart() {
+        internalStop()
         let now = Date()
-        currentSessionStartTime = now
-        
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
-        let timeString = formatter.string(from: now)
-        
-        ecgFileHandle = createAndOpenCSV(prefix: "ECG", timeString: timeString, header: "timestamp,microvolts,event\n")
-        hrFileHandle = createAndOpenCSV(prefix: "HR", timeString: timeString, header: "timestamp,bpm,event\n")
-        // ACC vytváranie súboru vymazané
-        
-        print("Session started at \(timeString)")
+        sessionStart = now
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+        let ts = f.string(from: now)
+
+        ecgHandle = makeHandle(prefix: "ECG", ts: ts, header: "timestamp,microvolts,event\n")
+        hrHandle  = makeHandle(prefix: "HR",  ts: ts, header: "timestamp,bpm,event\n")
+        rrHandle  = makeHandle(prefix: "HRV", ts: ts, header: "timestamp,rmssd,rr_intervals_ms\n")
+        print("✅ Session started: \(ts)")
     }
-    
-    private func internalStopSession() {
-        ecgFileHandle?.closeFile()
-        hrFileHandle?.closeFile()
-        
-        ecgFileHandle = nil
-        hrFileHandle = nil
-        currentSessionStartTime = nil
+
+    private func internalStop() {
+        [ecgHandle, hrHandle, rrHandle].forEach { $0?.closeFile() }
+        ecgHandle = nil; hrHandle = nil; rrHandle = nil; sessionStart = nil
     }
-    
-    private func checkAndRotateFilesIfNeeded() {
-        guard let start = currentSessionStartTime else { return }
-        if Date().timeIntervalSince(start) >= splitInterval {
-            print("1 hour reached. Rotating CSV files...")
-            internalStartNewSession()
+
+    private func rotateIfNeeded() {
+        guard let s = sessionStart, Date().timeIntervalSince(s) >= splitInterval else { return }
+        internalStart()
+    }
+
+    private func makeHandle(prefix: String, ts: String, header: String) -> FileHandle? {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let url  = docs.appendingPathComponent("\(prefix)_\(ts).csv")
+        if !FileManager.default.fileExists(atPath: url.path) {
+            FileManager.default.createFile(atPath: url.path, contents: header.data(using: .utf8))
         }
+        let h = try? FileHandle(forWritingTo: url)
+        h?.seekToEndOfFile()
+        return h
     }
-    
-    private func createAndOpenCSV(prefix: String, timeString: String, header: String) -> FileHandle? {
-        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let fileName = "\(prefix)_\(timeString).csv"
-        let fileURL = documentsPath.appendingPathComponent(fileName)
-        
-        if !FileManager.default.fileExists(atPath: fileURL.path) {
-            FileManager.default.createFile(atPath: fileURL.path, contents: nil, attributes: nil)
-            
-            if let targetFileHandle = try? FileHandle(forWritingTo: fileURL) {
-                targetFileHandle.seekToEndOfFile()
-                if let data = header.data(using: .utf8) {
-                    targetFileHandle.write(data)
-                }
-                targetFileHandle.closeFile()
-            }
-        }
-        
-        return try? FileHandle(forWritingTo: fileURL)
-    }
-    
-    // 🚨 FIX VAROVANIA: Zmena @Published premennej sa odosiela na Main Vlákno
+
+    // MARK: - Event tag
     private func consumeEventTag() -> String {
-        guard let state = eventState else { return "" }
-        if state.isEventMarked {
-            DispatchQueue.main.async {
-                state.isEventMarked = false
-            }
-            return "EVENT"
-        }
-        return ""
+        guard let s = eventState, s.isEventMarked else { return "" }
+        DispatchQueue.main.async { s.isEventMarked = false }
+        return "EVENT"
     }
-    
-    // MARK: - Append Data Methods
-    
+
+    // MARK: - Append helpers
     func appendECG(timestamp: UInt64, microVolts: Int32) {
-        ioQueue.async {
-            self.checkAndRotateFilesIfNeeded()
+        ioQ.async {
+            self.rotateIfNeeded()
             let tag = self.consumeEventTag()
-            let line = "\(timestamp),\(microVolts),\(tag)\n"
-            if let data = line.data(using: .utf8) {
-                self.ecgFileHandle?.seekToEndOfFile()
-                self.ecgFileHandle?.write(data)
-            }
+            self.write("\(timestamp),\(microVolts),\(tag)\n", to: self.ecgHandle)
         }
     }
-    
+
     func appendHR(timestamp: UInt64, bpm: UInt8) {
-        ioQueue.async {
-            self.checkAndRotateFilesIfNeeded()
+        ioQ.async {
             let tag = self.consumeEventTag()
-            let line = "\(timestamp),\(bpm),\(tag)\n"
-            if let data = line.data(using: .utf8) {
-                self.hrFileHandle?.seekToEndOfFile()
-                self.hrFileHandle?.write(data)
+            self.write("\(timestamp),\(bpm),\(tag)\n", to: self.hrHandle)
+        }
+    }
+
+    /// Zapisuje RMSSD a surové RR intervaly (ms) do dedikovaného HRV súboru.
+    func appendRR(timestamp: UInt64, rrIntervals: [Int], rmssd: Double) {
+        ioQ.async {
+            let rrs = rrIntervals.map(String.init).joined(separator: ";")
+            self.write("\(timestamp),\(String(format: "%.2f", rmssd)),\(rrs)\n", to: self.rrHandle)
+        }
+    }
+
+    private func write(_ line: String, to handle: FileHandle?) {
+        guard let d = line.data(using: .utf8) else { return }
+        handle?.write(d)
+    }
+
+    // MARK: - File management
+    func getAllSavedFiles() -> [URL] {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let all  = (try? FileManager.default.contentsOfDirectory(at: docs, includingPropertiesForKeys: nil)) ?? []
+        return all.filter { $0.pathExtension == "csv" }.sorted { $0.lastPathComponent > $1.lastPathComponent }
+    }
+
+    /// Zoskupí ECG / HR / HRV súbory podľa session timestampu.
+    func getGroupedSessions() -> [SessionGroup] {
+        var groups: [String: SessionGroup] = [:]
+        for url in getAllSavedFiles() {
+            let name = url.deletingPathExtension().lastPathComponent
+            // Format: PREFIX_YYYY-MM-DD_HH-mm-ss  →  split on first "_"
+            guard let cut = name.firstIndex(of: "_") else { continue }
+            let prefix = String(name[name.startIndex..<cut])
+            let key    = String(name[name.index(after: cut)...])
+            if groups[key] == nil { groups[key] = SessionGroup(sessionKey: key) }
+            switch prefix {
+            case "ECG": groups[key]?.ecgURL = url
+            case "HR":  groups[key]?.hrURL  = url
+            case "HRV": groups[key]?.hrvURL = url
+            default: break
             }
         }
+        return groups.values.sorted { $0.sessionKey > $1.sessionKey }
     }
-    
-    // appendACC metóda bola kompletne odstránená
-    
-    // MARK: - Správa súborov (História)
-    
-    // Načítanie všetkých uložených session súborov zoradených od najnovšieho
-    func getAllSavedFiles() -> [URL] {
-        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        do {
-            let files = try FileManager.default.contentsOfDirectory(at: documentsPath, includingPropertiesForKeys: nil)
-            return files.filter { $0.pathExtension == "csv" }.sorted(by: { $0.lastPathComponent > $1.lastPathComponent })
-        } catch {
-            print("Error reading documents directory: \(error)")
-            return []
-        }
-    }
-    
-    // Vymazanie súboru z pamäte iPhonu
-    func deleteSession(at url: URL) {
-        do {
-            try FileManager.default.removeItem(at: url)
-            print("✅ Súbor úspešne vymazaný: \(url.lastPathComponent)")
-        } catch {
-            print("❌ Chyba pri mazaní súboru: \(error)")
-        }
-    }
+
+    func deleteFile(at url: URL)            { try? FileManager.default.removeItem(at: url) }
+    func deleteGroup(_ g: SessionGroup)     { g.allURLs.forEach { deleteFile(at: $0) } }
 }
