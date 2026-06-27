@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		04DF0A9A2FEFBDEA005104BD /* PolarBleSdk in Frameworks */ = {isa = PBXBuildFile; productRef = 04DF0A992FEFBDEA005104BD /* PolarBleSdk */; };
+		04DF0A9D2FEFC051005104BD /* RxSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 04DF0A9C2FEFC051005104BD /* RxSwift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		04DF0A662FEFB01B005104BD /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +57,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				04DF0A9D2FEFC051005104BD /* RxSwift in Frameworks */,
+				04DF0A9A2FEFBDEA005104BD /* PolarBleSdk in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +119,8 @@
 			);
 			name = PolarEcgRecorder;
 			packageProductDependencies = (
+				04DF0A992FEFBDEA005104BD /* PolarBleSdk */,
+				04DF0A9C2FEFC051005104BD /* RxSwift */,
 			);
 			productName = PolarEcgRecorder;
 			productReference = 04DF0A562FEFB01A005104BD /* PolarEcgRecorder.app */;
@@ -195,6 +204,10 @@
 			);
 			mainGroup = 04DF0A4D2FEFB01A005104BD;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				04DF0A982FEFBDEA005104BD /* XCRemoteSwiftPackageReference "polar-ble-sdk" */,
+				04DF0A9B2FEFC051005104BD /* XCRemoteSwiftPackageReference "RxSwift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 04DF0A572FEFB01A005104BD /* Products */;
 			projectDirPath = "";
@@ -395,8 +408,10 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3RA6WSYD2R;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "App needs Bluetooth to connect Polar H10";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -426,8 +441,10 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3RA6WSYD2R;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "App needs Bluetooth to connect Polar H10";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -570,6 +587,38 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		04DF0A982FEFBDEA005104BD /* XCRemoteSwiftPackageReference "polar-ble-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/polarofficial/polar-ble-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 8.1.0;
+			};
+		};
+		04DF0A9B2FEFC051005104BD /* XCRemoteSwiftPackageReference "RxSwift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ReactiveX/RxSwift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 6.10.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		04DF0A992FEFBDEA005104BD /* PolarBleSdk */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 04DF0A982FEFBDEA005104BD /* XCRemoteSwiftPackageReference "polar-ble-sdk" */;
+			productName = PolarBleSdk;
+		};
+		04DF0A9C2FEFC051005104BD /* RxSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 04DF0A9B2FEFC051005104BD /* XCRemoteSwiftPackageReference "RxSwift" */;
+			productName = RxSwift;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 04DF0A4E2FEFB01A005104BD /* Project object */;
 }
