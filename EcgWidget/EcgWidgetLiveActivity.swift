@@ -14,7 +14,7 @@ struct EcgWidgetLiveActivity: Widget {
                     VStack(alignment: .leading) {
                         Text("Polar ECG Recorder")
                             .font(.headline)
-                        Text(context.state.isEventRecording ? "Zaznamenávam udalosť..." : "Monitorovanie aktívne")
+                        Text(context.state.isEventRecording ? "Recording event..." : "Monitoring active")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
@@ -29,7 +29,7 @@ struct EcgWidgetLiveActivity: Widget {
                 Button(intent: MarkEventIntent()) {
                     HStack {
                         Image(systemName: "exclamationmark.triangle.fill")
-                        Text("Označiť udalosť")
+                        Text("Mark Event")
                     }
                     .font(.headline)
                     .foregroundColor(.white)

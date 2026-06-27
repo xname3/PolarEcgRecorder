@@ -27,18 +27,18 @@ struct HistoryView: View {
                 }
             }
         }
-        .navigationTitle("História meraní")
+        .navigationTitle("Measurement History")
         .onAppear { reload() }
         .sheet(item: $fileToShare, onDismiss: cleanTemp) { f in
             ActivityViewController(activityItems: [f.url])
         }
-        .alert("Vymazať session?", isPresented: showDeleteAlert, presenting: deleteAlert) { g in
-            Button("Vymazať", role: .destructive) {
+        .alert("Delete session?", isPresented: showDeleteAlert, presenting: deleteAlert) { g in
+            Button("Delete", role: .destructive) {
                 StorageManager.shared.deleteGroup(g); reload()
             }
-            Button("Zrušiť", role: .cancel) {}
+            Button("Cancel", role: .cancel) {}
         } message: { g in
-            Text("Vymažú sa všetky súbory pre \(g.displayName).")
+            Text("All files will be deleted for \(g.displayName).")
         }
         .overlay {
             if isGeneratingPDF {
@@ -46,7 +46,7 @@ struct HistoryView: View {
                     Color.black.opacity(0.45).ignoresSafeArea()
                     VStack(spacing: 14) {
                         ProgressView().scaleEffect(1.4).tint(.white)
-                        Text("Generujem PDF správu…").foregroundColor(.white).font(.headline)
+                        Text("Generating PDF report...").foregroundColor(.white).font(.headline)
                     }
                     .padding(28)
                     .background(RoundedRectangle(cornerRadius: 18).fill(Color(.systemGray)))
@@ -66,7 +66,7 @@ struct HistoryView: View {
                 Spacer()
                 VStack(spacing: 10) {
                     Image(systemName: "folder.badge.questionmark").font(.system(size: 40)).foregroundColor(.gray)
-                    Text("Žiadne uložené záznamy").font(.headline).foregroundColor(.gray)
+                    Text("No saved records").font(.headline).foregroundColor(.gray)
                 }
                 .padding(.vertical, 40)
                 Spacer()
@@ -118,7 +118,7 @@ struct SessionGroupRow: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(group.displayName)
                         .font(.system(.subheadline, design: .rounded)).fontWeight(.semibold)
-                    Text("\(group.allURLs.count) súbory  •  \(group.totalSizeString)")
+                    Text("\(group.allURLs.count) files  •  \(group.totalSizeString)")
                         .font(.caption).foregroundColor(.secondary)
                 }
 
@@ -151,7 +151,7 @@ struct SessionGroupRow: View {
             }
         }
         .swipeActions(edge: .trailing) {
-            Button(role: .destructive, action: onDelete) { Label("Vymazať", systemImage: "trash") }
+            Button(role: .destructive, action: onDelete) { Label("Delete", systemImage: "trash") }
             Button(action: onGeneratePDF) { Label("PDF", systemImage: "doc.richtext.fill") }.tint(.blue)
         }
     }

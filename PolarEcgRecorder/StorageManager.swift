@@ -2,7 +2,7 @@ import Foundation
 import SwiftUI
 import Combine
 
-// MARK: - Session Group (ECG + HR + HRV trojica súborov)
+// MARK: - Session Group (ECG + HR + HRV file triplet)
 struct SessionGroup: Identifiable {
     let id = UUID()
     let sessionKey: String          // "2025-01-15_14-30-00"
@@ -127,6 +127,18 @@ class StorageManager {
         }
     }
 
+    func appendECGBatch(_ batch: [(UInt64, Int32)]) {
+        ioQ.async {
+            self.rotateIfNeeded()
+            var chunk = ""
+            for (ts, v) in batch {
+                let tag = self.consumeEcgEventTag(for: ts)
+                chunk.append("\(ts),\(v),\(tag)\n")
+            }
+            self.write(chunk, to: self.ecgHandle)
+        }
+    }
+
     func appendHR(timestamp: UInt64, bpm: UInt8) {
         ioQ.async {
             let tag = self.consumeHrEventTag(for: timestamp)
@@ -134,7 +146,7 @@ class StorageManager {
         }
     }
 
-    /// Zapisuje RMSSD a surové RR intervaly (ms) do dedikovaného HRV súboru.
+    /// Writes RMSSD and raw RR intervals (ms) to a dedicated HRV file.
     func appendRR(timestamp: UInt64, rrIntervals: [Int], rmssd: Double) {
         ioQ.async {
             let rrs = rrIntervals.map(String.init).joined(separator: ";")
@@ -154,7 +166,7 @@ class StorageManager {
         return all.filter { $0.pathExtension == "csv" }.sorted { $0.lastPathComponent > $1.lastPathComponent }
     }
 
-    /// Zoskupí ECG / HR / HRV súbory podľa session timestampu.
+    /// Groups ECG / HR / HRV files by session timestamp.
     func getGroupedSessions() -> [SessionGroup] {
         var groups: [String: SessionGroup] = [:]
         for url in getAllSavedFiles() {

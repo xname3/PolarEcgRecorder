@@ -39,7 +39,7 @@ struct DashboardView: View {
                 .background(RoundedRectangle(cornerRadius: 15).fill(Color(.systemGray6)))
                 .padding(.horizontal)
 
-                // ── HRV Stats row (zobrazí sa len keď sú dáta) ──────────────
+                // ── HRV Stats row (visible only when data is present) ──────────────
                 if polarManager.isConnected {
                     HStack(spacing: 0) {
                         HRVStatCell(
@@ -80,8 +80,10 @@ struct DashboardView: View {
                     for i in 0..<maxChartPoints {
                         guard let v = ecgBuffer[i] else { first = true; continue }
                         let x  = CGFloat(i) / CGFloat(maxChartPoints) * size.width
-                        let cv = max(-300, min(900, Double(v)))
-                        let y  = size.height - CGFloat((cv + 300) / 1200) * size.height
+                        let minV = -800.0
+                        let maxV = 1400.0
+                        let cv = max(minV, min(maxV, Double(v)))
+                        let y  = size.height - CGFloat((cv - minV) / (maxV - minV)) * size.height
                         if first { path.move(to: .init(x: x, y: y)); first = false }
                         else      { path.addLine(to: .init(x: x, y: y)) }
                     }
@@ -182,7 +184,7 @@ struct DashboardView: View {
                 startDisplayTimer()
             }
             .onDisappear { stopDisplayTimer() }
-            .onReceive(polarManager.ecgDataPublisher) { incomingPoints.append($0) }
+            .onReceive(polarManager.ecgDataPublisher) { incomingPoints.append(contentsOf: $0) }
         }
     }
 
@@ -197,9 +199,9 @@ struct DashboardView: View {
     private var rmssdLabel: String {
         let v = polarManager.currentRMSSD
         guard v > 0 else { return "—" }
-        if v < 20 { return "Nízky" }
-        if v < 50 { return "Normálny" }
-        return "Vysoký"
+        if v < 20 { return "Low" }
+        if v < 50 { return "Normal" }
+        return "High"
     }
 
     // MARK: - Display timer (30 Hz sweep)
@@ -207,7 +209,13 @@ struct DashboardView: View {
         displayTimer?.invalidate()
         displayTimer = Timer.scheduledTimer(withTimeInterval: 0.033, repeats: true) { _ in
             guard !incomingPoints.isEmpty else { return }
-            for _ in 0..<min(incomingPoints.count, 6) {
+            
+            // Self-regulating buffer: naturally stabilizes around ~40 points to prevent stuttering
+            // between BLE packets, while adapting to higher latency if needed.
+            let targetConsume = max(4, Int(ceil(Double(incomingPoints.count) / 10.0)))
+            let toConsume = min(incomingPoints.count, targetConsume)
+            
+            for _ in 0..<toConsume {
                 let v = incomingPoints.removeFirst()
                 ecgBuffer[writeIndex] = v
                 for gap in 1...22 { ecgBuffer[(writeIndex + gap) % maxChartPoints] = nil }

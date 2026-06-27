@@ -38,7 +38,7 @@ class PolarManager: ObservableObject {
     private var rrRolling:  [Int] = []         // NEW: last ~300 RR intervals (~5 min)
 
     private var eventRecordTask: Task<Void, Never>? = nil
-    let ecgDataPublisher = PassthroughSubject<Int32, Never>()
+    let ecgDataPublisher = PassthroughSubject<[Int32], Never>()
     private var hrTask:  Task<Void, Never>?
     private var ecgTask: Task<Void, Never>?
 
@@ -120,7 +120,6 @@ class PolarManager: ObservableObject {
                         let ts  = UInt64(now.timeIntervalSince1970 * 1000)
 
                         self.hrRolling.append((now, ts, hr))
-                        self.hrRolling.removeAll { now.timeIntervalSince($0.date) > 60 }
 
                         if self.isStreaming || self.isEventRecording {
                             StorageManager.shared.appendHR(timestamp: ts, bpm: hr)
@@ -133,6 +132,8 @@ class PolarManager: ObservableObject {
                             }
                         }
                     }
+                    // Trim rolling buffer once per HR packet
+                    self.hrRolling.removeAll { Date().timeIntervalSince($0.date) > 60 }
                 }
             } catch { print("❌ HR stream: \(error)") }
         }
@@ -152,19 +153,31 @@ class PolarManager: ObservableObject {
                     let sampleIntervalMs: Double = 1000.0 / 130.0
                     let totalSamples = ecgData.count
 
+                    var batchForStorage: [(UInt64, Int32)] = []
+                    var batchForUI: [Int32] = []
+                    batchForStorage.reserveCapacity(totalSamples)
+                    batchForUI.reserveCapacity(totalSamples)
+
                     for (index, sample) in ecgData.enumerated() {
                         let offsetMs = Double(totalSamples - 1 - index) * sampleIntervalMs
                         let sampleTs = baseTimestampMs - UInt64(offsetMs)
                         let v   = self.filterEcgSample(sample.voltage)
 
                         self.ecgRolling.append((now, sampleTs, v))
-                        self.ecgRolling.removeAll { now.timeIntervalSince($0.date) > 60 }
-
-                        self.ecgDataPublisher.send(v)
+                        batchForUI.append(v)
 
                         if self.isStreaming || self.isEventRecording {
-                            StorageManager.shared.appendECG(timestamp: sampleTs, microVolts: v)
+                            batchForStorage.append((sampleTs, v))
                         }
+                    }
+
+                    // Trim rolling buffer once per ECG packet to avoid O(N^2) overhead
+                    self.ecgRolling.removeAll { now.timeIntervalSince($0.date) > 60 }
+                    
+                    self.ecgDataPublisher.send(batchForUI)
+
+                    if !batchForStorage.isEmpty {
+                        StorageManager.shared.appendECGBatch(batchForStorage)
                     }
                 }
             } catch { print("❌ ECG stream: \(error)") }

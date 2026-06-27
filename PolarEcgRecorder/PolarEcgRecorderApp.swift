@@ -25,7 +25,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     private func setupNotificationCategories() {
         let markEventAction = UNNotificationAction(
             identifier: "MARK_EVENT",
-            title: "Označiť udalosť ⚠️",
+            title: "Mark Event ⚠️",
             options: []
         )
         let category = UNNotificationCategory(
