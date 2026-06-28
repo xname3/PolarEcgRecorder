@@ -71,10 +71,17 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
 @main
 struct PolarEcgRecorderApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
+    @AppStorage("preventSleep") private var preventSleep: Bool = false
 
     var body: some Scene {
         WindowGroup {
             DashboardView()
+                .onAppear {
+                    UIApplication.shared.isIdleTimerDisabled = preventSleep
+                }
+                .onChange(of: preventSleep) { _, newValue in
+                    UIApplication.shared.isIdleTimerDisabled = newValue
+                }
         }
     }
 }

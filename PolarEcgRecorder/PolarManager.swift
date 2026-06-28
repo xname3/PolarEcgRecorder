@@ -43,6 +43,7 @@ class PolarManager: ObservableObject {
     private var ecgTask: Task<Void, Never>?
 
     private var activeActivity: Activity<EcgActivityAttributes>? = nil
+    private var lastBufferTrim: Date = Date()
 
     private init() {
         api.observer = self
@@ -135,7 +136,9 @@ class PolarManager: ObservableObject {
                         }
                     }
                     // Trim rolling buffer once per HR packet
-                    self.hrRolling.removeAll { Date().timeIntervalSince($0.date) > 60 }
+                    if Date().timeIntervalSince(self.lastBufferTrim) > 2.0 {
+                        self.hrRolling.removeAll { Date().timeIntervalSince($0.date) > 60 }
+                    }
                 }
             } catch { print("❌ HR stream: \(error)") }
         }
@@ -176,10 +179,13 @@ class PolarManager: ObservableObject {
                         }
                     }
 
-                    DispatchQueue.main.async {
+                    DispatchQueue.main.async { [newRolling, batchForUI] in
                         self.ecgRolling.append(contentsOf: newRolling)
-                        // Trim rolling buffer once per ECG packet to avoid O(N^2) overhead
-                        self.ecgRolling.removeAll { now.timeIntervalSince($0.date) > 60 }
+                        // Trim rolling buffer every 2 seconds to avoid O(N^2) overhead
+                        if now.timeIntervalSince(self.lastBufferTrim) > 2.0 {
+                            self.ecgRolling.removeAll { now.timeIntervalSince($0.date) > 60 }
+                            self.lastBufferTrim = now
+                        }
                         self.ecgDataPublisher.send(batchForUI)
                     }
 
