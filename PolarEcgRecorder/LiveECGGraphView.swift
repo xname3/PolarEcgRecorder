@@ -92,7 +92,7 @@ struct LiveECGGraphView: View {
             for _ in 0..<toConsume {
                 let v = incomingPoints.removeFirst()
                 ecgBuffer[writeIndex] = v
-                for gap in 1...22 { ecgBuffer[(writeIndex + gap) % maxChartPoints] = nil }
+                for gap in 1...44 { ecgBuffer[(writeIndex + gap) % maxChartPoints] = nil }
                 writeIndex = (writeIndex + 1) % maxChartPoints
             }
         }
