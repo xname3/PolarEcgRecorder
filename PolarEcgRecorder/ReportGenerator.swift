@@ -545,18 +545,14 @@ class ECGAnalyzer {
         var anomalies: [AnomalyEvent] = []
         var rPeaks: [ECGSample] = []
         
-        // 2. Strict Refractory Lockout (250 ms)
-        let refractoryMs: UInt64 = 250
+        // 2. Dynamic Refractory Lockout
         var threshold: Int32 = 400
         var lastPeakTimestamp: UInt64 = 0
+        var rollingRRs: [Double] = []
         
         var i = 0
         while i < sortedEcgData.count {
-            let timeSinceLastPeak = sortedEcgData[i].timestamp > lastPeakTimestamp 
-                ? sortedEcgData[i].timestamp - lastPeakTimestamp 
-                : 0
-            
-            if sortedEcgData[i].microVolts > threshold && (lastPeakTimestamp == 0 || timeSinceLastPeak > refractoryMs) {
+            if sortedEcgData[i].microVolts > threshold {
                 // Candidate found. Search the next ~115ms (15 samples) for the true local maximum
                 let endIdx = min(i + 15, sortedEcgData.count)
                 var peakIdx = i
@@ -569,21 +565,45 @@ class ECGAnalyzer {
                     }
                 }
                 
-                rPeaks.append(sortedEcgData[peakIdx])
-                lastPeakTimestamp = sortedEcgData[peakIdx].timestamp
+                let detectedPeak = sortedEcgData[peakIdx]
+                rPeaks.append(detectedPeak)
+                
+                // Update rolling RRs (last 4 beats)
+                if lastPeakTimestamp > 0 && detectedPeak.timestamp > lastPeakTimestamp {
+                    let rr = Double(detectedPeak.timestamp - lastPeakTimestamp)
+                    rollingRRs.append(rr)
+                    if rollingRRs.count > 4 { rollingRRs.removeFirst() }
+                }
+                lastPeakTimestamp = detectedPeak.timestamp
+                
+                // Calculate Dynamic Lockout (40% of avg RR, clamped 200-350ms)
+                let lockoutMs: Double
+                if rollingRRs.isEmpty {
+                    lockoutMs = 300.0
+                } else {
+                    let avgRR = rollingRRs.reduce(0, +) / Double(rollingRRs.count)
+                    lockoutMs = min(350.0, max(200.0, avgRR * 0.40))
+                }
+                
+                // Convert to samples (130 Hz = 0.13 samples/ms)
+                let lockoutSamples = Int(lockoutMs * 0.13)
                 
                 // Adaptive threshold: set to 60% of current peak, min 250 µV to avoid noise
                 threshold = max(250, Int32(Double(peakVal) * 0.6))
                 
-                // Skip iterator past the local maximum search window
-                i = peakIdx
+                // Skip iterator past the true peak PLUS the dynamic refractory period
+                i = peakIdx + lockoutSamples
             } else {
                 // If no peak found for > 2 seconds, slowly decay threshold to avoid getting stuck
+                let timeSinceLastPeak = lastPeakTimestamp > 0 && sortedEcgData[i].timestamp > lastPeakTimestamp 
+                    ? sortedEcgData[i].timestamp - lastPeakTimestamp 
+                    : 0
+                
                 if timeSinceLastPeak > 2000 {
                     threshold = max(200, Int32(Double(threshold) * 0.95))
                 }
+                i += 1
             }
-            i += 1
         }
         
         // Evaluate RR intervals using a rolling baseline to handle high heart rates
