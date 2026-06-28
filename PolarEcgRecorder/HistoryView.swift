@@ -164,6 +164,9 @@ struct SessionDetailView: View {
     @State private var anomalies: [AnomalyEvent] = []
     @State private var isGeneratingPDF = false
     @State private var fileToShare: ShareableFile? = nil
+    @State private var pdfError: String? = nil
+    @State private var showPdfError = false
+    @State private var integrityError: String? = nil
     
     var body: some View {
         VStack {
@@ -174,6 +177,19 @@ struct SessionDetailView: View {
                     Text("Detecting R-peaks & structural anomalies")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                }
+                .padding()
+            } else if let integrityError = integrityError {
+                VStack(spacing: 16) {
+                    Image(systemName: "xmark.octagon.fill")
+                        .font(.system(size: 60))
+                        .foregroundColor(.red)
+                    Text("Session Corrupted")
+                        .font(.title2.bold())
+                    Text(integrityError)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
                 }
                 .padding()
             } else if anomalies.isEmpty {
@@ -215,7 +231,7 @@ struct SessionDetailView: View {
                 }
             }
             
-            if !isAnalyzing {
+            if !isAnalyzing && integrityError == nil {
                 Button {
                     generateFullPDF()
                 } label: {
@@ -254,6 +270,11 @@ struct SessionDetailView: View {
                 }
             }
         }
+        .alert("Report Generation Failed", isPresented: $showPdfError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(pdfError ?? "Unknown error occurred.")
+        }
     }
     
     private func runAnalysis() {
@@ -263,7 +284,20 @@ struct SessionDetailView: View {
         }
         
         DispatchQueue.global(qos: .userInitiated).async {
-            let ecgData = ReportGenerator.parseECG(url)
+            var ecgData = ReportGenerator.parseECG(url)
+            var hrData = ReportGenerator.parseHR(group.hrURL)
+            var hrvData = ReportGenerator.parseHRV(group.hrvURL)
+            
+            do {
+                try ReportGenerator.validateDataIntegrity(ecg: &ecgData, hr: &hrData, hrv: &hrvData)
+            } catch {
+                DispatchQueue.main.async {
+                    self.integrityError = error.localizedDescription
+                    self.isAnalyzing = false
+                }
+                return
+            }
+            
             let detected = ECGAnalyzer.analyze(ecgData: ecgData)
             
             DispatchQueue.main.async {
@@ -276,10 +310,14 @@ struct SessionDetailView: View {
     private func generateFullPDF() {
         isGeneratingPDF = true
         // Pass the already detected anomalies down to the generator
-        ReportGenerator.generate(group: group, anomalies: anomalies) { url in
+        ReportGenerator.generate(group: group, anomalies: anomalies) { result in
             isGeneratingPDF = false
-            if let url {
+            switch result {
+            case .success(let url):
                 fileToShare = ShareableFile(url: url)
+            case .failure(let error):
+                pdfError = error.localizedDescription
+                showPdfError = true
             }
         }
     }

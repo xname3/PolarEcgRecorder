@@ -13,6 +13,30 @@ struct ECGSample { let timestamp: UInt64; let microVolts: Int32; let isEvent: Bo
 struct HRSample  { let timestamp: UInt64; let bpm: UInt8 }
 struct HRVSample { let timestamp: UInt64; let rmssd: Double; let rrIntervals: [Int] }
 
+// MARK: - DataIntegrityError
+enum DataIntegrityError: LocalizedError {
+    case insufficientECGData(expected: Int, actual: Int)
+    case insufficientHRData(expected: Int, actual: Int)
+    case massiveECGGap(gapMs: UInt64)
+    case massiveHRVGap(gapMs: UInt64)
+    case noData
+    
+    var errorDescription: String? {
+        switch self {
+        case .insufficientECGData(let expected, let actual):
+            return "Corrupted Session: Missing too much ECG data. Expected ~\(expected) samples, but found only \(actual)."
+        case .insufficientHRData(let expected, let actual):
+            return "Corrupted Session: Missing too much HR data. Expected ~\(expected) samples, but found only \(actual)."
+        case .massiveECGGap(let gapMs):
+            return "Corrupted Session: Detected a massive gap in ECG data (\(gapMs) ms). The Bluetooth connection was heavily dropped."
+        case .massiveHRVGap(let gapMs):
+            return "Corrupted Session: Detected a massive gap in HRV data (\(gapMs) ms). The Bluetooth connection was heavily dropped."
+        case .noData:
+            return "Corrupted Session: No data found to generate a report."
+        }
+    }
+}
+
 // MARK: - Report Generator
 class ReportGenerator {
     static let W: CGFloat = 595     // A4
@@ -21,13 +45,63 @@ class ReportGenerator {
     static let CW: CGFloat = 595 - 2 * 44 // content width
 
     // MARK: - Public entry point
-    static func generate(group: SessionGroup, anomalies: [AnomalyEvent] = [], completion: @escaping (URL?) -> Void) {
+    static func generate(group: SessionGroup, anomalies: [AnomalyEvent] = [], completion: @escaping (Result<URL, Error>) -> Void) {
         DispatchQueue.global(qos: .userInitiated).async {
-            let ecg = parseECG(group.ecgURL)
-            let hr  = parseHR (group.hrURL)
-            let hrv = parseHRV(group.hrvURL)
-            let url = buildPDF(group: group, ecg: ecg, hr: hr, hrv: hrv, anomalies: anomalies)
-            DispatchQueue.main.async { completion(url) }
+            var ecg = parseECG(group.ecgURL)
+            var hr  = parseHR (group.hrURL)
+            var hrv = parseHRV(group.hrvURL)
+            
+            do {
+                try validateDataIntegrity(ecg: &ecg, hr: &hr, hrv: &hrv)
+            } catch {
+                DispatchQueue.main.async { completion(.failure(error)) }
+                return
+            }
+            
+            if let url = buildPDF(group: group, ecg: ecg, hr: hr, hrv: hrv, anomalies: anomalies) {
+                DispatchQueue.main.async { completion(.success(url)) }
+            } else {
+                DispatchQueue.main.async { completion(.failure(DataIntegrityError.noData)) }
+            }
+        }
+    }
+
+    static func validateDataIntegrity(ecg: inout [ECGSample], hr: inout [HRSample], hrv: inout [HRVSample]) throws {
+        // 1. Universal Sorting
+        ecg.sort { $0.timestamp < $1.timestamp }
+        hr.sort { $0.timestamp < $1.timestamp }
+        hrv.sort { $0.timestamp < $1.timestamp }
+        
+        guard let firstEcg = ecg.first, let lastEcg = ecg.last else { throw DataIntegrityError.noData }
+        let durationInSeconds = Double(lastEcg.timestamp - firstEcg.timestamp) / 1000.0
+        guard durationInSeconds > 0 else { throw DataIntegrityError.noData }
+        
+        // 2. Type-Specific Integrity Math
+        
+        // ECG Check
+        let expectedECG = Int(durationInSeconds * 130.0)
+        if Double(ecg.count) < Double(expectedECG) * 0.80 {
+            throw DataIntegrityError.insufficientECGData(expected: expectedECG, actual: ecg.count)
+        }
+        for i in 1..<ecg.count {
+            let gap = ecg[i].timestamp - ecg[i-1].timestamp
+            if gap > 3000 {
+                throw DataIntegrityError.massiveECGGap(gapMs: gap)
+            }
+        }
+        
+        // HR Check
+        let expectedHR = Int(durationInSeconds * 1.0)
+        if Double(hr.count) < Double(expectedHR) * 0.70 {
+            throw DataIntegrityError.insufficientHRData(expected: expectedHR, actual: hr.count)
+        }
+        
+        // HRV Check
+        for i in 1..<hrv.count {
+            let gap = hrv[i].timestamp - hrv[i-1].timestamp
+            if gap > 5000 {
+                throw DataIntegrityError.massiveHRVGap(gapMs: gap)
+            }
         }
     }
 
@@ -45,7 +119,7 @@ class ReportGenerator {
         }
     }
 
-    private static func parseHR(_ url: URL?) -> [HRSample] {
+    static func parseHR(_ url: URL?) -> [HRSample] {
         guard let url, let raw = try? String(contentsOf: url, encoding: .utf8) else { return [] }
         return raw.split(separator: "\n").dropFirst().compactMap { line in
             let p = line.split(separator: ",")
@@ -57,7 +131,7 @@ class ReportGenerator {
         }
     }
 
-    private static func parseHRV(_ url: URL?) -> [HRVSample] {
+    static func parseHRV(_ url: URL?) -> [HRVSample] {
         guard let url, let raw = try? String(contentsOf: url, encoding: .utf8) else { return [] }
         return raw.split(separator: "\n").dropFirst().compactMap { line in
             let p = line.split(separator: ",")
