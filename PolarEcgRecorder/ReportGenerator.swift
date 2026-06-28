@@ -9,26 +9,30 @@ import Foundation
 import UIKit
 
 // MARK: - Data models
-private struct ECGSample { let timestamp: UInt64; let microVolts: Int32; let isEvent: Bool }
-private struct HRSample  { let timestamp: UInt64; let bpm: UInt8 }
-private struct HRVSample { let timestamp: UInt64; let rmssd: Double }
+struct ECGSample { let timestamp: UInt64; let microVolts: Int32; let isEvent: Bool }
+struct HRSample  { let timestamp: UInt64; let bpm: UInt8 }
+struct HRVSample { let timestamp: UInt64; let rmssd: Double; let rrIntervals: [Int] }
 
 // MARK: - Report Generator
 class ReportGenerator {
+    static let W: CGFloat = 595     // A4
+    static let H: CGFloat = 842
+    static let M: CGFloat = 44      // margin
+    static let CW: CGFloat = 595 - 2 * 44 // content width
 
     // MARK: - Public entry point
-    static func generate(group: SessionGroup, completion: @escaping (URL?) -> Void) {
+    static func generate(group: SessionGroup, anomalies: [AnomalyEvent] = [], completion: @escaping (URL?) -> Void) {
         DispatchQueue.global(qos: .userInitiated).async {
             let ecg = parseECG(group.ecgURL)
             let hr  = parseHR (group.hrURL)
             let hrv = parseHRV(group.hrvURL)
-            let url = buildPDF(group: group, ecg: ecg, hr: hr, hrv: hrv)
+            let url = buildPDF(group: group, ecg: ecg, hr: hr, hrv: hrv, anomalies: anomalies)
             DispatchQueue.main.async { completion(url) }
         }
     }
 
     // MARK: - CSV Parsers
-    private static func parseECG(_ url: URL?) -> [ECGSample] {
+    static func parseECG(_ url: URL?) -> [ECGSample] {
         guard let url, let raw = try? String(contentsOf: url, encoding: .utf8) else { return [] }
         return raw.split(separator: "\n").dropFirst().compactMap { line in
             let p = line.split(separator: ",")
@@ -61,14 +65,22 @@ class ReportGenerator {
                   let ts    = UInt64(p[0].trimmingCharacters(in: .whitespaces)),
                   let rmssd = Double(p[1].trimmingCharacters(in: .whitespaces))
             else { return nil }
-            return HRVSample(timestamp: ts, rmssd: rmssd)
+            var rrs: [Int] = []
+            if p.count >= 3 {
+                let rrString = String(p[2])
+                    .replacingOccurrences(of: "[", with: "")
+                    .replacingOccurrences(of: "]", with: "")
+                    .trimmingCharacters(in: .whitespaces)
+                rrs = rrString.split(separator: ";").compactMap { Int(String($0).trimmingCharacters(in: .whitespaces)) }
+            }
+            return HRVSample(timestamp: ts, rmssd: rmssd, rrIntervals: rrs)
         }
     }
 
     // MARK: - PDF builder
     private static func buildPDF(
         group: SessionGroup,
-        ecg: [ECGSample], hr: [HRSample], hrv: [HRVSample]
+        ecg: [ECGSample], hr: [HRSample], hrv: [HRVSample], anomalies: [AnomalyEvent]
     ) -> URL? {
 
         // ── Stats ────────────────────────────────────────────────────────────
@@ -85,14 +97,26 @@ class ReportGenerator {
             return Double(b - a) / 1000.0
         }()
 
-        // Event indices in ECG array (index-based, avoids timestamp mismatch)
-        let eventIndices = ecg.indices.filter { ecg[$0].isEvent }
+        struct ReportEvent {
+            let index: Int
+            let typeName: String
+            let timestamp: UInt64
+            let color: UIColor
+        }
+
+        var combinedEvents: [ReportEvent] = []
+        for idx in ecg.indices where ecg[idx].isEvent {
+            combinedEvents.append(ReportEvent(index: idx, typeName: "MANUAL EVENT MARKER", timestamp: ecg[idx].timestamp, color: .systemBlue))
+        }
+        for anomaly in anomalies {
+            if let idx = ecg.firstIndex(where: { $0.timestamp >= anomaly.timestamp }) {
+                let color = anomaly.type == .dropout ? UIColor.systemRed : UIColor.systemOrange
+                combinedEvents.append(ReportEvent(index: idx, typeName: "ANOMALY: \(anomaly.type.rawValue.uppercased())", timestamp: anomaly.timestamp, color: color))
+            }
+        }
+        combinedEvents.sort(by: { $0.timestamp < $1.timestamp })
 
         // ── PDF setup ────────────────────────────────────────────────────────
-        let W: CGFloat = 595     // A4
-        let H: CGFloat = 842
-        let M: CGFloat = 44      // margin
-        let CW = W - 2 * M      // content width
 
         let renderer = UIGraphicsPDFRenderer(bounds: CGRect(x: 0, y: 0, width: W, height: H))
         let data = renderer.pdfData { ctx in
@@ -107,17 +131,17 @@ class ReportGenerator {
             cgc.fill(CGRect(x: 0, y: 0, width: W, height: 6))
 
             // Title
-            attr("ECG MONITORING REPORT",
-                 font: .boldSystemFont(ofSize: 20), color: .label)
+            attr("COMPREHENSIVE ECG & HRV REPORT",
+                 font: .boldSystemFont(ofSize: 20), color: .black)
                 .draw(at: CGPoint(x: M, y: y)); y += 28
 
             let df = DateFormatter(); df.dateStyle = .long; df.timeStyle = .medium
             attr("Recorded: \(df.string(from: group.sessionDate))   •   Duration: \(fmtDur(duration))   •   Device: Polar H10",
-                 font: .systemFont(ofSize: 10), color: .secondaryLabel)
+                 font: .systemFont(ofSize: 10), color: .darkGray)
                 .draw(at: CGPoint(x: M, y: y)); y += 16
 
-            attr("Generated by PolarECG Monitor",
-                 font: .italicSystemFont(ofSize: 9), color: .tertiaryLabel)
+            attr("Generated by PolarEcgRecorder",
+                 font: .italicSystemFont(ofSize: 9), color: .gray)
                 .draw(at: CGPoint(x: M, y: y)); y += 20
 
             hLine(ctx: cgc, x: M, y: y, w: CW); y += 16
@@ -131,7 +155,7 @@ class ReportGenerator {
                 ("Avg RMSSD",        avgHRV > 0 ? fmtD(avgHRV) : "N/A", "ms"),
                 ("Min RMSSD",        minHRV > 0 ? fmtD(minHRV) : "N/A", "ms"),
                 ("Max RMSSD",        maxHRV > 0 ? fmtD(maxHRV) : "N/A", "ms"),
-                ("Events Count",     "\(eventIndices.count)", "")            ]
+                ("Events Found",     "\(combinedEvents.count)", "")            ]
             y = drawStatsGrid(stats: stats, ctx: cgc, y: y, x: M, cw: CW)
             y += 14
 
@@ -150,43 +174,55 @@ class ReportGenerator {
             }
 
             if hrv.count > 1 {
-                sectionTitle("HRV (RMSSD) Trend", ctx: cgc, y: &y, x: M, w: CW)
+                let halfW = (CW - 16) / 2
+                let topY = y
+                
+                sectionTitle("HRV (RMSSD) Trend", ctx: cgc, y: &y, x: M, w: halfW)
                 drawHRVChart(hrv: hrv, ctx: cgc,
-                             rect: CGRect(x: M, y: y, width: CW, height: 90))
-                y += 104
+                             rect: CGRect(x: M, y: y, width: halfW, height: 130))
+                
+                var py = topY
+                sectionTitle("Poincaré Plot (RR Intervals)", ctx: cgc, y: &py, x: M + halfW + 16, w: halfW)
+                drawPoincarePlot(hrv: hrv, ctx: cgc,
+                                 rect: CGRect(x: M + halfW + 16, y: py, width: halfW, height: 130))
+                
+                y += 140
             }
 
             // ── EVENT PAGES ──────────────────────────────────────────────────
-            for (evNum, evIdx) in eventIndices.enumerated() {
+            for (evNum, event) in combinedEvents.enumerated() {
                 ctx.beginPage()
                 let cgc2 = ctx.cgContext
-                cgc2.setFillColor(UIColor.systemRed.withAlphaComponent(0.9).cgColor)
+                cgc2.setFillColor(event.color.withAlphaComponent(0.9).cgColor)
                 cgc2.fill(CGRect(x: 0, y: 0, width: W, height: 6))
 
                 var ey = M
-                let eventTime = dateFromPolarTimestamp(ecg[evIdx].timestamp)
+                let eventTime = dateFromPolarTimestamp(event.timestamp)
                 let df = DateFormatter()
                 df.dateStyle = .medium
                 df.timeStyle = .medium
                 let eventTimeStr = df.string(from: eventTime)
 
-                attr("EVENT \(evNum + 1) / \(eventIndices.count)   •   \(eventTimeStr)",
-                     font: .boldSystemFont(ofSize: 15), color: .systemOrange)
+                attr("RECORDED EVENT \(evNum + 1) / \(combinedEvents.count)   •   \(eventTimeStr)",
+                     font: .boldSystemFont(ofSize: 15), color: event.color)
                     .draw(at: CGPoint(x: M, y: ey)); ey += 22
+                    
+                attr("Type: \(event.typeName)", font: .boldSystemFont(ofSize: 12), color: .black)
+                    .draw(at: CGPoint(x: M, y: ey)); ey += 16
 
-                attr("ECG Window: 30s before event (▼) and 15s after  •  130 Hz  •  units µV",
-                     font: .systemFont(ofSize: 9), color: .secondaryLabel)
+                attr("ECG Window: 30s before event (▼) and 30s after  •  130 Hz  •  units µV",
+                     font: .systemFont(ofSize: 9), color: .darkGray)
                     .draw(at: CGPoint(x: M, y: ey)); ey += 18
 
                 hLine(ctx: cgc2, x: M, y: ey, w: CW); ey += 12
 
-                // Extract 30 s before and 15 s after at index level
+                // Extract 30 s before and 30 s after at index level
                 let before = 130 * 30
-                let after  = 130 * 15
-                let start  = max(0, evIdx - before)
-                let end    = min(ecg.count - 1, evIdx + after)
+                let after  = 130 * 30
+                let start  = max(0, event.index - before)
+                let end    = min(ecg.count - 1, event.index + after)
                 let window = Array(ecg[start...end])
-                let eventPosInWindow = evIdx - start   // where marker falls in window
+                let eventPosInWindow = event.index - start   // where marker falls in window
 
                 // Draw 10-second strips
                 let stripSamples = 130 * 10   // 1 300 samples per strip
@@ -213,7 +249,7 @@ class ReportGenerator {
 
                     // Time label
                     attr(labelStr, font: .monospacedSystemFont(ofSize: 6.5, weight: .regular),
-                         color: .secondaryLabel)
+                         color: .darkGray)
                         .draw(at: CGPoint(x: M, y: ey + 4))
 
                     let rect = CGRect(x: M + 36, y: ey, width: CW - 36, height: stripH)
@@ -225,31 +261,22 @@ class ReportGenerator {
                     if ey > H - M - stripH - stripGap {
                         ctx.beginPage()
                         ey = M
-                        cgc2.setFillColor(UIColor.systemRed.withAlphaComponent(0.9).cgColor)
+                        cgc2.setFillColor(event.color.withAlphaComponent(0.9).cgColor)
                         cgc2.fill(CGRect(x: 0, y: 0, width: W, height: 6))
                     }
                     stripStart += stripSamples
                 }
-
-                // HR around event (full session — timestamps are wall clock)
-                if hr.count > 1 {
-                    ey += 4
-                    sectionTitle("Heart Rate during recording", ctx: cgc2, y: &ey, x: M, w: CW)
-                    drawHRChart(hr: hr, ctx: cgc2,
-                                rect: CGRect(x: M, y: ey, width: CW, height: 80))
-                    ey += 94
-                }
             }
 
             // If no events: short note page
-            if eventIndices.isEmpty {
+            if combinedEvents.isEmpty {
                 ctx.beginPage()
                 var ny = M
                 attr("No events were recorded during this session.",
-                     font: .systemFont(ofSize: 13), color: .secondaryLabel)
+                     font: .systemFont(ofSize: 13), color: .darkGray)
                     .draw(at: CGPoint(x: M, y: ny)); ny += 20
                 attr("The MARK EVENT button was not pressed.",
-                     font: .systemFont(ofSize: 11), color: .tertiaryLabel)
+                     font: .systemFont(ofSize: 11), color: .gray)
                     .draw(at: CGPoint(x: M, y: ny))
             }
         }
@@ -269,7 +296,7 @@ class ReportGenerator {
         eventXFraction: CGFloat?
     ) {
         // Background
-        ctx.setFillColor(UIColor.systemBackground.cgColor); ctx.fill(rect)
+        ctx.setFillColor(UIColor.white.cgColor); ctx.fill(rect)
 
         // Minor grid
         ctx.setStrokeColor(UIColor.systemRed.withAlphaComponent(0.06).cgColor)
@@ -302,7 +329,7 @@ class ReportGenerator {
         }
 
         // Border
-        ctx.setStrokeColor(UIColor.systemGray3.cgColor); ctx.setLineWidth(0.5); ctx.stroke(rect)
+        ctx.setStrokeColor(UIColor(white: 0.80, alpha: 1.0).cgColor); ctx.setLineWidth(0.5); ctx.stroke(rect)
 
         // ECG line
         guard samples.count >= 2 else { return }
@@ -319,11 +346,11 @@ class ReportGenerator {
     }
 
     private static func drawHRChart(hr: [HRSample], ctx: CGContext, rect: CGRect) {
-        ctx.setFillColor(UIColor.systemGray6.cgColor); ctx.fill(rect)
+        ctx.setFillColor(UIColor(white: 0.95, alpha: 1.0).cgColor); ctx.fill(rect)
         let bpms = hr.map { Double($0.bpm) }
         let lo = (bpms.min() ?? 40) - 8, hi = (bpms.max() ?? 180) + 8, rng = hi - lo
         // Grid
-        ctx.setStrokeColor(UIColor.systemGray4.cgColor); ctx.setLineWidth(0.3)
+        ctx.setStrokeColor(UIColor(white: 0.85, alpha: 1.0).cgColor); ctx.setLineWidth(0.3)
         for v in stride(from: 40.0, through: 200.0, by: 20.0) {
             guard v > lo && v < hi else { continue }
             let y = rect.maxY - CGFloat((v - lo) / rng) * rect.height
@@ -341,7 +368,7 @@ class ReportGenerator {
             i == 0 ? p.move(to:.init(x:x,y:y)) : p.addLine(to:.init(x:x,y:y))
         }
         ctx.addPath(p); ctx.strokePath()
-        ctx.setStrokeColor(UIColor.systemGray2.cgColor); ctx.setLineWidth(0.5); ctx.stroke(rect)
+        ctx.setStrokeColor(UIColor(white: 0.70, alpha: 1.0).cgColor); ctx.setLineWidth(0.5); ctx.stroke(rect)
     }
 
     private static func drawHRVChart(hrv: [HRVSample], ctx: CGContext, rect: CGRect) {
@@ -370,7 +397,39 @@ class ReportGenerator {
             i == 0 ? p.move(to:.init(x:x,y:y)) : p.addLine(to:.init(x:x,y:y))
         }
         ctx.addPath(p); ctx.strokePath()
-        ctx.setStrokeColor(UIColor.systemGray3.cgColor); ctx.setLineWidth(0.5); ctx.stroke(rect)
+        ctx.setStrokeColor(UIColor(white: 0.80, alpha: 1.0).cgColor); ctx.setLineWidth(0.5); ctx.stroke(rect)
+    }
+
+    private static func drawPoincarePlot(hrv: [HRVSample], ctx: CGContext, rect: CGRect) {
+        let rrs = hrv.flatMap { $0.rrIntervals }
+        guard rrs.count > 1 else { return }
+        let sorted = rrs.sorted()
+        let lo = CGFloat(sorted.first ?? 300) * 0.9
+        let hi = CGFloat(sorted.last ?? 1200) * 1.1
+        let rng = max(hi - lo, 1)
+        
+        ctx.setFillColor(UIColor(white: 0.95, alpha: 1.0).cgColor)
+        ctx.fill(rect)
+        ctx.setStrokeColor(UIColor(white: 0.80, alpha: 1.0).cgColor)
+        ctx.setLineWidth(0.5)
+        ctx.stroke(rect)
+        
+        ctx.move(to: CGPoint(x: rect.minX, y: rect.maxY))
+        ctx.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        ctx.strokePath()
+        
+        ctx.setFillColor(UIColor.systemRed.withAlphaComponent(0.5).cgColor)
+        for i in 0..<(rrs.count - 1) {
+            let rr_n = CGFloat(rrs[i])
+            let rr_np1 = CGFloat(rrs[i+1])
+            let x = rect.minX + ((rr_n - lo) / rng) * rect.width
+            let y = rect.maxY - ((rr_np1 - lo) / rng) * rect.height
+            if x >= rect.minX && x <= rect.maxX && y >= rect.minY && y <= rect.maxY {
+                ctx.fillEllipse(in: CGRect(x: x - 1.5, y: y - 1.5, width: 3, height: 3))
+            }
+        }
+        attr("RR(n)", font: .systemFont(ofSize: 7), color: .darkGray).draw(at: CGPoint(x: rect.midX - 10, y: rect.maxY + 2))
+        attr("RR(n+1)", font: .systemFont(ofSize: 7), color: .darkGray).draw(at: CGPoint(x: rect.minX + 4, y: rect.minY + 4))
     }
 
     private static func drawStatsGrid(
@@ -381,13 +440,13 @@ class ReportGenerator {
         for (i, item) in stats.enumerated() {
             let col = CGFloat(i % cols); let row = CGFloat(i / cols)
             let cx = x + col * cellW; let cy = y + row * cellH
-            ctx.setFillColor(UIColor.systemGray6.cgColor)
+            ctx.setFillColor(UIColor(white: 0.95, alpha: 1.0).cgColor)
             ctx.fill(CGRect(x: cx + 3, y: cy + 2, width: cellW - 6, height: cellH - 4))
-            attr(item.0, font: .systemFont(ofSize: 8.5), color: .secondaryLabel)
+            attr(item.0, font: .systemFont(ofSize: 8.5), color: .darkGray)
                 .draw(at: CGPoint(x: cx + 8, y: cy + 6))
-            attr(item.1, font: .boldSystemFont(ofSize: 18), color: .label)
+            attr(item.1, font: .boldSystemFont(ofSize: 18), color: .black)
                 .draw(at: CGPoint(x: cx + 8, y: cy + 18))
-            attr(item.2, font: .systemFont(ofSize: 9), color: .secondaryLabel)
+            attr(item.2, font: .systemFont(ofSize: 9), color: .darkGray)
                 .draw(at: CGPoint(x: cx + 8, y: cy + 40))
         }
         let rows = CGFloat((stats.count + cols - 1) / cols)
@@ -408,16 +467,16 @@ class ReportGenerator {
 
     // MARK: - Formatting helpers
     private static func sectionTitle(_ s: String, ctx: CGContext, y: inout CGFloat, x: CGFloat, w: CGFloat) {
-        attr(s.uppercased(), font: .systemFont(ofSize: 10, weight: .semibold), color: .secondaryLabel)
+        attr(s.uppercased(), font: .systemFont(ofSize: 10, weight: .semibold), color: .darkGray)
             .draw(at: CGPoint(x: x, y: y))
         y += 14
-        ctx.setStrokeColor(UIColor.systemGray4.cgColor); ctx.setLineWidth(0.5)
+        ctx.setStrokeColor(UIColor(white: 0.85, alpha: 1.0).cgColor); ctx.setLineWidth(0.5)
         ctx.move(to:.init(x:x,y:y)); ctx.addLine(to:.init(x:x+w,y:y)); ctx.strokePath()
         y += 8
     }
 
     private static func hLine(ctx: CGContext, x: CGFloat, y: CGFloat, w: CGFloat) {
-        ctx.setStrokeColor(UIColor.systemGray3.cgColor); ctx.setLineWidth(0.8)
+        ctx.setStrokeColor(UIColor(white: 0.80, alpha: 1.0).cgColor); ctx.setLineWidth(0.8)
         ctx.move(to:.init(x:x,y:y)); ctx.addLine(to:.init(x:x+w,y:y)); ctx.strokePath()
     }
 
@@ -449,5 +508,100 @@ class ReportGenerator {
 
     private static func hrvColor(_ rmssd: Double) -> UIColor {
         rmssd < 20 ? .systemRed : rmssd < 50 ? .systemOrange : .systemGreen
+    }
+    
+    // MARK: - Anomaly Report Generator
+}
+
+enum AnomalyType: String {
+    case dropout = "Pause (>1.5s)"
+    case premature = "Premature Beat (<0.4s)"
+}
+
+struct AnomalyEvent: Identifiable {
+    let id = UUID()
+    let type: AnomalyType
+    let timestamp: UInt64
+    let rrInterval: Double
+}
+
+class ECGAnalyzer {
+    
+    /// Analyzes an array of ECG samples to detect structural RR interval anomalies.
+    /// Uses a dynamic thresholding approach to identify R-peaks in O(N) time.
+    static func analyze(ecgData: [ECGSample]) -> [AnomalyEvent] {
+        guard ecgData.count > 130 else { return [] }
+        
+        // 1. Chronological Sorting explicitly by timestamp
+        let sortedEcgData = ecgData.sorted { $0.timestamp < $1.timestamp }
+        
+        var anomalies: [AnomalyEvent] = []
+        var rPeaks: [ECGSample] = []
+        
+        // 2. Strict Refractory Lockout (250 ms)
+        let refractoryMs: UInt64 = 250
+        var threshold: Int32 = 400
+        var lastPeakTimestamp: UInt64 = 0
+        
+        var i = 0
+        while i < sortedEcgData.count {
+            let timeSinceLastPeak = sortedEcgData[i].timestamp > lastPeakTimestamp 
+                ? sortedEcgData[i].timestamp - lastPeakTimestamp 
+                : 0
+            
+            if sortedEcgData[i].microVolts > threshold && (lastPeakTimestamp == 0 || timeSinceLastPeak > refractoryMs) {
+                // Candidate found. Search the next ~115ms (15 samples) for the true local maximum
+                let endIdx = min(i + 15, sortedEcgData.count)
+                var peakIdx = i
+                var peakVal = sortedEcgData[i].microVolts
+                
+                for j in i..<endIdx {
+                    if sortedEcgData[j].microVolts > peakVal {
+                        peakVal = sortedEcgData[j].microVolts
+                        peakIdx = j
+                    }
+                }
+                
+                rPeaks.append(sortedEcgData[peakIdx])
+                lastPeakTimestamp = sortedEcgData[peakIdx].timestamp
+                
+                // Adaptive threshold: set to 60% of current peak, min 250 µV to avoid noise
+                threshold = max(250, Int32(Double(peakVal) * 0.6))
+                
+                // Skip iterator past the local maximum search window
+                i = peakIdx
+            } else {
+                // If no peak found for > 2 seconds, slowly decay threshold to avoid getting stuck
+                if timeSinceLastPeak > 2000 {
+                    threshold = max(200, Int32(Double(threshold) * 0.95))
+                }
+            }
+            i += 1
+        }
+        
+        // Evaluate RR intervals using a rolling baseline to handle high heart rates
+        var recentRRs: [Double] = []
+        for k in 1..<rPeaks.count {
+            let rr = Double(rPeaks[k].timestamp - rPeaks[k-1].timestamp)
+            
+            let baselineRR = recentRRs.isEmpty ? 800.0 : recentRRs.sorted()[recentRRs.count / 2]
+            
+            // Dropout: Gap > 1.5s AND significantly longer than baseline
+            if rr > max(1500.0, baselineRR * 1.75) {
+                anomalies.append(AnomalyEvent(type: .dropout, timestamp: rPeaks[k].timestamp, rrInterval: rr))
+            } 
+            // Premature Beat: >25% shorter than baseline, but don't flag normal fast HR
+            else if rr < baselineRR * 0.75 && rr > 250.0 {
+                anomalies.append(AnomalyEvent(type: .premature, timestamp: rPeaks[k].timestamp, rrInterval: rr))
+            }
+            
+            // Track baseline (only normal-ish beats)
+            if rr > 300 && rr < 1500 {
+                recentRRs.append(rr)
+                if recentRRs.count > 10 { recentRRs.removeFirst() }
+            }
+        }
+        
+        return anomalies
     }
 }

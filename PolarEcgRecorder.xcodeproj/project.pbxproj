@@ -63,7 +63,7 @@
 		04DF0A6F2FEFB01B005104BD /* PolarEcgRecorderUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PolarEcgRecorderUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3CF0CCB1F725B966D5D9C386 /* EcgWidgetBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EcgWidgetBundle.swift; sourceTree = "<group>"; };
 		4E08388E406AA9F1E14C4D40 /* EcgActivityAttributes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EcgActivityAttributes.swift; sourceTree = "<group>"; };
-		84C329212365078CD2A56059 /* EcgWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; name = EcgWidget.appex; path = EcgWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		84C329212365078CD2A56059 /* EcgWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = EcgWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		9CCA2D4C6BBC1FFD400512A7 /* MarkEventIntent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MarkEventIntent.swift; sourceTree = "<group>"; };
 		A7E2EAEEA7911FC75A0D1E4F /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 /* End PBXFileReference section */
@@ -71,22 +71,16 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		04DF0A582FEFB01A005104BD /* PolarEcgRecorder */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = PolarEcgRecorder;
 			sourceTree = "<group>";
 		};
 		04DF0A682FEFB01B005104BD /* PolarEcgRecorderTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = PolarEcgRecorderTests;
 			sourceTree = "<group>";
 		};
 		04DF0A722FEFB01B005104BD /* PolarEcgRecorderUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = PolarEcgRecorderUITests;
 			sourceTree = "<group>";
 		};

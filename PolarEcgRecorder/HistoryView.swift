@@ -18,12 +18,17 @@ struct HistoryView: View {
                 emptyState
             } else {
                 ForEach(sessions) { group in
-                    SessionGroupRow(
-                        group: group,
-                        onGeneratePDF: { generatePDF(for: group) },
-                        onShareFile:   { share(url: $0) },
-                        onDelete:      { deleteAlert = group }
-                    )
+                    ZStack {
+                        NavigationLink(destination: SessionDetailView(group: group)) {
+                            EmptyView()
+                        }.opacity(0)
+                        
+                        SessionGroupRow(
+                            group: group,
+                            onShareFile:   { share(url: $0) },
+                            onDelete:      { deleteAlert = group }
+                        )
+                    }
                 }
             }
         }
@@ -39,19 +44,6 @@ struct HistoryView: View {
             Button("Cancel", role: .cancel) {}
         } message: { g in
             Text("All files will be deleted for \(g.displayName).")
-        }
-        .overlay {
-            if isGeneratingPDF {
-                ZStack {
-                    Color.black.opacity(0.45).ignoresSafeArea()
-                    VStack(spacing: 14) {
-                        ProgressView().scaleEffect(1.4).tint(.white)
-                        Text("Generating PDF report...").foregroundColor(.white).font(.headline)
-                    }
-                    .padding(28)
-                    .background(RoundedRectangle(cornerRadius: 18).fill(Color(.systemGray)))
-                }
-            }
         }
     }
 
@@ -76,14 +68,6 @@ struct HistoryView: View {
 
     private func reload() { sessions = StorageManager.shared.getGroupedSessions() }
 
-    private func generatePDF(for group: SessionGroup) {
-        isGeneratingPDF = true
-        ReportGenerator.generate(group: group) { url in
-            isGeneratingPDF = false
-            if let url { fileToShare = ShareableFile(url: url) }
-        }
-    }
-
     private func share(url: URL) {
         let tmp = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(url.lastPathComponent)
         try? FileManager.default.removeItem(at: tmp)
@@ -103,7 +87,6 @@ struct HistoryView: View {
 // MARK: - Session Group Row
 struct SessionGroupRow: View {
     let group: SessionGroup
-    let onGeneratePDF: () -> Void
     let onShareFile:   (URL) -> Void
     let onDelete:      () -> Void
 
@@ -123,14 +106,6 @@ struct SessionGroupRow: View {
                 }
 
                 Spacer()
-
-                // PDF button
-                Button(action: onGeneratePDF) {
-                    Label("PDF", systemImage: "doc.richtext.fill")
-                        .labelStyle(.iconOnly)
-                        .font(.title3).foregroundColor(.blue)
-                }
-                .buttonStyle(.borderless)
 
                 // Expand
                 Button { withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() } } label: {
@@ -152,7 +127,6 @@ struct SessionGroupRow: View {
         }
         .swipeActions(edge: .trailing) {
             Button(role: .destructive, action: onDelete) { Label("Delete", systemImage: "trash") }
-            Button(action: onGeneratePDF) { Label("PDF", systemImage: "doc.richtext.fill") }.tint(.blue)
         }
     }
 }
@@ -181,4 +155,145 @@ struct ActivityViewController: UIViewControllerRepresentable {
         return vc
     }
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+struct SessionDetailView: View {
+    let group: SessionGroup
+    
+    @State private var isAnalyzing = true
+    @State private var anomalies: [AnomalyEvent] = []
+    @State private var isGeneratingPDF = false
+    @State private var fileToShare: ShareableFile? = nil
+    
+    var body: some View {
+        VStack {
+            if isAnalyzing {
+                VStack(spacing: 16) {
+                    ProgressView("Analyzing ECG Signal...")
+                        .scaleEffect(1.2)
+                    Text("Detecting R-peaks & structural anomalies")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding()
+            } else if anomalies.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 60))
+                        .foregroundColor(.green)
+                    Text("No structural anomalies detected.")
+                        .font(.title3.bold())
+                    Text("The RR intervals stayed within normal bounds.\nNo pauses >1.5s or premature beats <0.4s found.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding()
+            } else {
+                List {
+                    Section(header: Text("Detected Anomalies (\(anomalies.count))")) {
+                        ForEach(anomalies) { anomaly in
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundColor(anomaly.type == .dropout ? .red : .orange)
+                                    Text(anomaly.type.rawValue)
+                                        .font(.headline)
+                                    Spacer()
+                                    Text("\(Int(anomaly.rrInterval)) ms")
+                                        .font(.subheadline.bold())
+                                        .foregroundColor(.secondary)
+                                }
+                                
+                                Text("Time: \(formatTimestamp(anomaly.timestamp))")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                }
+            }
+            
+            if !isAnalyzing {
+                Button {
+                    generateFullPDF()
+                } label: {
+                    HStack {
+                        Image(systemName: "doc.richtext.fill")
+                        Text("Export Full Comprehensive Report")
+                    }
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.blue)
+                    .cornerRadius(12)
+                }
+                .padding()
+            }
+        }
+        .navigationTitle("Session Analysis")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            runAnalysis()
+        }
+        .sheet(item: $fileToShare, onDismiss: cleanTemp) { f in
+            ActivityViewController(activityItems: [f.url])
+        }
+        .overlay {
+            if isGeneratingPDF {
+                ZStack {
+                    Color.black.opacity(0.45).ignoresSafeArea()
+                    VStack(spacing: 14) {
+                        ProgressView().scaleEffect(1.4).tint(.white)
+                        Text("Generating Comprehensive PDF...").foregroundColor(.white).font(.headline)
+                    }
+                    .padding(28)
+                    .background(RoundedRectangle(cornerRadius: 18).fill(Color(.systemGray)))
+                }
+            }
+        }
+    }
+    
+    private func runAnalysis() {
+        guard let url = group.ecgURL else {
+            isAnalyzing = false
+            return
+        }
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            let ecgData = ReportGenerator.parseECG(url)
+            let detected = ECGAnalyzer.analyze(ecgData: ecgData)
+            
+            DispatchQueue.main.async {
+                self.anomalies = detected
+                self.isAnalyzing = false
+            }
+        }
+    }
+    
+    private func generateFullPDF() {
+        isGeneratingPDF = true
+        // Pass the already detected anomalies down to the generator
+        ReportGenerator.generate(group: group, anomalies: anomalies) { url in
+            isGeneratingPDF = false
+            if let url {
+                fileToShare = ShareableFile(url: url)
+            }
+        }
+    }
+    
+    private func formatTimestamp(_ ts: UInt64) -> String {
+        let date = Date(timeIntervalSince1970: Double(ts) / 1000.0)
+        let df = DateFormatter()
+        df.dateStyle = .medium
+        df.timeStyle = .medium
+        return df.string(from: date)
+    }
+    
+    private func cleanTemp() {
+        if let url = fileToShare?.url { try? FileManager.default.removeItem(at: url) }
+        fileToShare = nil
+    }
 }

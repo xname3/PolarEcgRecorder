@@ -10,7 +10,7 @@ class PolarManager: ObservableObject {
     static let shared = PolarManager()
 
     private var api = PolarBleApiDefaultImpl.polarImplementation(
-        DispatchQueue.main,
+        DispatchQueue(label: "com.ecgpolar.ble", qos: .background),
         features: [
             PolarBleSdkFeature.feature_hr,
             PolarBleSdkFeature.feature_battery_info,
@@ -102,17 +102,19 @@ class PolarManager: ObservableObject {
                         let hr = sample.hr
                         let rrs = sample.rrsMs          // ← RR intervals from Polar SDK
 
-                        self.currentHR = hr
-                        self.updateLiveActivity()
+                        DispatchQueue.main.async {
+                            self.currentHR = hr
+                            self.updateLiveActivity()
 
-                        if !rrs.isEmpty {
-                            self.lastRRInterval = rrs.last ?? 0
-                            self.rrRolling.append(contentsOf: rrs)
-                            if self.rrRolling.count > 300 {
-                                self.rrRolling = Array(self.rrRolling.suffix(300))
-                            }
-                            if self.rrRolling.count >= 5 {
-                                self.currentRMSSD = self.calculateRMSSD(self.rrRolling)
+                            if !rrs.isEmpty {
+                                self.lastRRInterval = rrs.last ?? 0
+                                self.rrRolling.append(contentsOf: rrs)
+                                if self.rrRolling.count > 300 {
+                                    self.rrRolling = Array(self.rrRolling.suffix(300))
+                                }
+                                if self.rrRolling.count >= 5 {
+                                    self.currentRMSSD = self.calculateRMSSD(self.rrRolling)
+                                }
                             }
                         }
 
@@ -158,12 +160,15 @@ class PolarManager: ObservableObject {
                     batchForStorage.reserveCapacity(totalSamples)
                     batchForUI.reserveCapacity(totalSamples)
 
+                    var newRolling: [(date: Date, ts: UInt64, val: Int32)] = []
+                    newRolling.reserveCapacity(totalSamples)
+
                     for (index, sample) in ecgData.enumerated() {
                         let offsetMs = Double(totalSamples - 1 - index) * sampleIntervalMs
                         let sampleTs = baseTimestampMs - UInt64(offsetMs)
                         let v   = self.filterEcgSample(sample.voltage)
 
-                        self.ecgRolling.append((now, sampleTs, v))
+                        newRolling.append((now, sampleTs, v))
                         batchForUI.append(v)
 
                         if self.isStreaming || self.isEventRecording {
@@ -171,10 +176,12 @@ class PolarManager: ObservableObject {
                         }
                     }
 
-                    // Trim rolling buffer once per ECG packet to avoid O(N^2) overhead
-                    self.ecgRolling.removeAll { now.timeIntervalSince($0.date) > 60 }
-                    
-                    self.ecgDataPublisher.send(batchForUI)
+                    DispatchQueue.main.async {
+                        self.ecgRolling.append(contentsOf: newRolling)
+                        // Trim rolling buffer once per ECG packet to avoid O(N^2) overhead
+                        self.ecgRolling.removeAll { now.timeIntervalSince($0.date) > 60 }
+                        self.ecgDataPublisher.send(batchForUI)
+                    }
 
                     if !batchForStorage.isEmpty {
                         StorageManager.shared.appendECGBatch(batchForStorage)
