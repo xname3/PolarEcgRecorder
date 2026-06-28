@@ -5,8 +5,7 @@ struct DashboardView: View {
     @StateObject private var eventState   = EventState()
     @AppStorage("livePreviewEnabled") private var livePreviewEnabled: Bool = true
 
-    @State private var sessionDuration: TimeInterval = 0
-    @State private var sessionTimer: Timer? = nil
+    @State private var sessionStartTime: Date? = nil
 
     var body: some View {
         NavigationStack {
@@ -90,11 +89,32 @@ struct DashboardView: View {
                                 .background(Color(.systemGray6)).cornerRadius(10)
                         }
                     } else {
-                        Button { polarManager.autoConnect() } label: {
-                            Text("CONNECT POLAR H10")
-                                .font(.headline).foregroundColor(.white)
+                        VStack(spacing: 8) {
+                            if polarManager.isConnecting {
+                                HStack {
+                                    ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                        .padding(.trailing, 8)
+                                    Text("CONNECTING...")
+                                        .font(.headline).foregroundColor(.white)
+                                }
                                 .frame(maxWidth: .infinity).padding()
-                                .background(Color.blue).cornerRadius(10)
+                                .background(Color.blue.opacity(0.7)).cornerRadius(10)
+                            } else {
+                                Button { polarManager.autoConnect() } label: {
+                                    Text("CONNECT POLAR H10")
+                                        .font(.headline).foregroundColor(.white)
+                                        .frame(maxWidth: .infinity).padding()
+                                        .background(Color.blue).cornerRadius(10)
+                                }
+                            }
+                            
+                            if polarManager.connectionFailed {
+                                Text("Connection failed. If the H10 is paired in iOS Settings > Bluetooth, please 'Forget This Device' there and try again.")
+                                    .font(.caption)
+                                    .foregroundColor(.red)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal)
+                            }
                         }
                     }
                 }
@@ -103,8 +123,16 @@ struct DashboardView: View {
                 // Status
                 Group {
                     if polarManager.isStreaming {
-                        Text("Recording: \(formattedDuration)")
+                        if let start = sessionStartTime {
+                            HStack(spacing: 4) {
+                                Text("Recording:")
+                                Text(start, style: .timer)
+                            }
                             .font(.system(.body, design: .monospaced)).foregroundColor(.green)
+                        } else {
+                            Text("Recording...")
+                                .font(.system(.body, design: .monospaced)).foregroundColor(.green)
+                        }
                     } else if polarManager.isEventRecording {
                         Text("⚠️ SAVING EVENT (−30 s / +15 s)…")
                             .font(.system(.body, design: .monospaced)).foregroundColor(.orange).bold()
@@ -175,19 +203,12 @@ struct DashboardView: View {
     private func startSession() {
         polarManager.startStreaming()
         StorageManager.shared.startNewSession()   // single authoritative call
-        sessionDuration = 0
-        sessionTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in sessionDuration += 1 }
+        sessionStartTime = Date()
     }
     private func stopSession() {
         polarManager.stopStreaming()
         StorageManager.shared.stopSession()
-        sessionTimer?.invalidate(); sessionTimer = nil
-    }
-    private var formattedDuration: String {
-        let f = DateComponentsFormatter()
-        f.allowedUnits = [.hour, .minute, .second]
-        f.unitsStyle = .positional; f.zeroFormattingBehavior = .pad
-        return f.string(from: sessionDuration) ?? "00:00:00"
+        sessionStartTime = nil
     }
 }
 

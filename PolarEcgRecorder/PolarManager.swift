@@ -28,6 +28,8 @@ class PolarManager: ObservableObject {
     // NEW
     @Published var currentRMSSD: Double = 0.0
     @Published var lastRRInterval: Int = 0
+    @Published var isConnecting: Bool = false
+    @Published var connectionFailed: Bool = false
 
     private var filterBaseline: Double = 0.0
     private var filterSmoothed: Double = 0.0
@@ -69,6 +71,10 @@ class PolarManager: ObservableObject {
 
     // MARK: - Connection
     func autoConnect() {
+        guard !isConnecting else { return }
+        isConnecting = true
+        connectionFailed = false
+        
         Task { @MainActor in
             if let savedId = UserDefaults.standard.string(forKey: "LastPolarDeviceID") {
                 do { try api.connectToDevice(savedId) }
@@ -76,6 +82,13 @@ class PolarManager: ObservableObject {
             }
             do { try await api.startAutoConnectToDevice(-85, service: nil, polarDeviceType: "H10") }
             catch { print("❌ autoConnect: \(error)") }
+            
+            // 10-second timeout
+            try? await Task.sleep(nanoseconds: 10_000_000_000)
+            if !self.isConnected {
+                self.isConnecting = false
+                self.connectionFailed = true
+            }
         }
     }
 
@@ -286,22 +299,19 @@ class PolarManager: ObservableObject {
     func startStreaming() {
         guard isConnected, !deviceId.isEmpty, !isStreaming, !isEventRecording else { return }
         isStreaming = true
-        startLiveActivity()
+        updateLiveActivity()
     }
 
     func stopStreaming() {
         guard isStreaming else { return }
         isStreaming = false
-        if !isEventRecording {
-            stopLiveActivity()
-        }
+        updateLiveActivity()
     }
 
     @MainActor
     func startEventRecordingWindow() {
         guard isConnected, !deviceId.isEmpty, !isStreaming, !isEventRecording else { return }
         isEventRecording = true
-        startLiveActivity()
         updateLiveActivity()
         StorageManager.shared.startNewSession()
 
@@ -327,9 +337,6 @@ class PolarManager: ObservableObject {
         eventRecordTask?.cancel(); eventRecordTask = nil
         StorageManager.shared.stopSession()
         updateLiveActivity()
-        if !isStreaming {
-            stopLiveActivity()
-        }
     }
 }
 
@@ -341,12 +348,16 @@ extension PolarManager: PolarBleApiObserver {
             self.deviceId    = i.deviceId
             UserDefaults.standard.set(i.deviceId, forKey: "LastPolarDeviceID")
             self.isConnected = true
+            self.isConnecting = false
+            self.connectionFailed = false
             self.startAllStreams()
+            self.startLiveActivity()
         }
     }
     func deviceDisconnected(_ i: PolarDeviceInfo, pairingError: Bool) {
         DispatchQueue.main.async {
             self.isConnected = false; self.isStreaming = false; self.isEventRecording = false
+            self.isConnecting = false
             self.stopAllStreams(); self.currentHR = 0; self.batteryLevel = 0
             self.stopLiveActivity()
         }
