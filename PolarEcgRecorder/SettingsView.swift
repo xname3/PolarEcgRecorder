@@ -18,8 +18,63 @@ struct SettingsView: View {
             Section(header: Text("Display"), footer: Text("Prevents the iPhone screen from dimming and locking while the app is open.")) {
                 Toggle("Prevent sleep phone", isOn: $preventSleep)
             }
+            
+            Section(header: Text("Legal & Privacy")) {
+                NavigationLink(destination: DisclaimerView()) {
+                    HStack {
+                        Image(systemName: "hand.raised.fill")
+                            .foregroundColor(.orange)
+                        Text("Disclaimer & Privacy Policy")
+                    }
+                }
+            }
         }
         .navigationTitle("Settings")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct DisclaimerView: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Group {
+                    Text("Medical Disclaimer")
+                        .font(.title3.bold())
+                        .foregroundColor(.primary)
+                    
+                    Text("This application is for informational, fitness, and educational purposes only. It is designed to work with the Polar H10 heart rate sensor, which functions as a single-lead ECG monitor.")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                    
+                    Text("This app does NOT replace professional medical advice, clinical diagnosis, treatment, or hospital-grade ECG equipment. It cannot detect heart attacks (myocardial infarction), heart failure, stroke, or any acute cardiac emergencies.")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                    
+                    Text("If you feel unwell, experience chest pain, shortness of breath, pressure, or any symptoms you attribute to your heart, please seek immediate emergency medical care.")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                }
+                
+                Divider()
+                
+                Group {
+                    Text("Data Privacy Policy")
+                        .font(.title3.bold())
+                        .foregroundColor(.primary)
+                    
+                    Text("Your privacy is absolute. All recorded ECG, Heart Rate (HR), and HRV data are processed and stored strictly locally on your device in CSV format.")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                    
+                    Text("No personal information, health telemetry, or physiological records are ever transmitted to external servers, cloud databases, or shared with third parties. You have total and exclusive control over your files.")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding()
+        }
+        .navigationTitle("Disclaimer & Privacy")
         .navigationBarTitleDisplayMode(.inline)
     }
 }
