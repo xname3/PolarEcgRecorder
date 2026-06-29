@@ -4,6 +4,7 @@ struct DashboardView: View {
     @StateObject private var polarManager = PolarManager.shared
     @StateObject private var eventState   = EventState()
     @AppStorage("livePreviewEnabled") private var livePreviewEnabled: Bool = true
+    @AppStorage("realTimeExtrasystoleDetection") private var rtDetectionEnabled: Bool = false
 
     @State private var sessionStartTime: Date? = nil
 
@@ -37,6 +38,17 @@ struct DashboardView: View {
                 // ── HRV Stats row (visible only when data is present) ──────────────
                 if polarManager.isConnected {
                     HStack(spacing: 0) {
+                        if rtDetectionEnabled {
+                            HRVStatCell(
+                                icon: "exclamationmark.triangle.fill",
+                                iconColor: .orange,
+                                title: "PVC/PAC",
+                                value: "\(polarManager.rtExtrasystoleCount)",
+                                unit: ""
+                            )
+                            Divider().frame(height: 44)
+                        }
+                        
                         HRVStatCell(
                             icon: "waveform.path.ecg",
                             iconColor: rmssdColor,

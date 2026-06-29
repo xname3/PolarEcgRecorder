@@ -4,6 +4,9 @@ struct SettingsView: View {
     @AppStorage("reportIdentification") private var reportIdentification: String = ""
     @AppStorage("livePreviewEnabled") private var livePreviewEnabled: Bool = true
     @AppStorage("preventSleep") private var preventSleep: Bool = false
+    @AppStorage("realTimeExtrasystoleDetection") private var rtDetectionEnabled: Bool = false
+    @AppStorage("rtUseAIDetection") private var rtUseAIDetection: Bool = true
+    @AppStorage("beepOnExtrasystole") private var beepOnExtrasystole: Bool = true
     
     var body: some View {
         Form {
@@ -17,6 +20,20 @@ struct SettingsView: View {
             
             Section(header: Text("Display"), footer: Text("Prevents the iPhone screen from dimming and locking while the app is open.")) {
                 Toggle("Prevent sleep phone", isOn: $preventSleep)
+            }
+            
+            Section(header: Text("Real-time Detection"), footer: Text("Analyzes incoming ECG stream to detect premature beats. This runs locally on your device.")) {
+                Toggle("Detect Extrasystoles (PVC/PAC)", isOn: $rtDetectionEnabled)
+                if rtDetectionEnabled {
+                    Picker("Detection Method", selection: $rtUseAIDetection) {
+                        Text("AI Morphology Model").tag(true)
+                        Text("RR Interval Deviation").tag(false)
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.vertical, 4)
+                    
+                    Toggle("Beep on detection", isOn: $beepOnExtrasystole)
+                }
             }
             
             Section(header: Text("Legal & Privacy")) {

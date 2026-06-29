@@ -161,7 +161,7 @@ struct SessionDetailView: View {
     let group: SessionGroup
     
     @State private var isAnalyzing = true
-    @State private var anomalies: [AnomalyEvent] = []
+    @State private var summary: SessionSummary? = nil
     @State private var isGeneratingPDF = false
     @State private var fileToShare: ShareableFile? = nil
     @State private var pdfError: String? = nil
@@ -192,7 +192,7 @@ struct SessionDetailView: View {
                         .multilineTextAlignment(.center)
                 }
                 .padding()
-            } else if anomalies.isEmpty {
+            } else if let summary = summary, summary.anomalies.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 60))
@@ -205,10 +205,18 @@ struct SessionDetailView: View {
                         .multilineTextAlignment(.center)
                 }
                 .padding()
-            } else {
+            } else if let summary = summary {
                 List {
-                    Section(header: Text("Detected Anomalies (\(anomalies.count))")) {
-                        ForEach(anomalies) { anomaly in
+                    Section(header: Text("Session Stats")) {
+                        HStack { Text("Total Beats"); Spacer(); Text("\(summary.totalBeats)") }
+                        HStack { Text("Artifact / Noise"); Spacer(); Text("\(String(format: "%.1f", summary.artifactPercent))%") }
+                        HStack { Text("pNN50"); Spacer(); Text("\(String(format: "%.1f", summary.pNN50))%") }
+                        HStack { Text("Tachy Burden"); Spacer(); Text("\(String(format: "%.1f", summary.tachycardiaBurden))%") }
+                        HStack { Text("Brady Burden"); Spacer(); Text("\(String(format: "%.1f", summary.bradycardiaBurden))%") }
+                    }
+                    
+                    Section(header: Text("Detected Anomalies (\(summary.anomalies.count))")) {
+                        ForEach(summary.anomalies) { anomaly in
                             VStack(alignment: .leading, spacing: 10) {
                                 HStack {
                                     Image(systemName: "exclamationmark.triangle.fill")
@@ -298,19 +306,20 @@ struct SessionDetailView: View {
                 return
             }
             
-            let detected = ECGAnalyzer.analyze(ecgData: ecgData)
+            let summary = ECGAnalyzer.analyze(ecgData: ecgData)
             
             DispatchQueue.main.async {
-                self.anomalies = detected
+                self.summary = summary
                 self.isAnalyzing = false
             }
         }
     }
     
     private func generateFullPDF() {
+        guard let summary = summary else { return }
         isGeneratingPDF = true
-        // Pass the already detected anomalies down to the generator
-        ReportGenerator.generate(group: group, anomalies: anomalies) { result in
+        // Pass the summary down to the generator
+        ReportGenerator.generate(group: group, summary: summary) { result in
             isGeneratingPDF = false
             switch result {
             case .success(let url):
