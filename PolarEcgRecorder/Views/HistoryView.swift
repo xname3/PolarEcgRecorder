@@ -1,10 +1,6 @@
 import SwiftUI
 import UIKit
 
-struct ShareableFile: Identifiable {
-    let id = UUID()
-    let url: URL
-}
 
 struct HistoryView: View {
     @State private var sessions: [SessionGroup] = []
@@ -292,12 +288,12 @@ struct SessionDetailView: View {
         }
         
         DispatchQueue.global(qos: .userInitiated).async {
-            var ecgData = ReportGenerator.parseECG(url)
-            var hrData = ReportGenerator.parseHR(group.hrURL)
-            var hrvData = ReportGenerator.parseHRV(group.hrvURL)
+            var ecgData = ECGAnalyzer.parseECG(url)
+            var hrData = ECGAnalyzer.parseHR(group.hrURL)
+            var hrvData = ECGAnalyzer.parseHRV(group.hrvURL)
             
             do {
-                try ReportGenerator.validateDataIntegrity(ecg: &ecgData, hr: &hrData, hrv: &hrvData)
+                try ECGAnalyzer.validateDataIntegrity(ecg: &ecgData, hr: &hrData, hrv: &hrvData)
             } catch {
                 DispatchQueue.main.async {
                     self.integrityError = error.localizedDescription
@@ -319,7 +315,7 @@ struct SessionDetailView: View {
         guard let summary = summary else { return }
         isGeneratingPDF = true
         // Pass the summary down to the generator
-        ReportGenerator.generate(group: group, summary: summary) { result in
+        PDFReportGenerator.generate(group: group, summary: summary) { result in
             isGeneratingPDF = false
             switch result {
             case .success(let url):

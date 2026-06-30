@@ -2,53 +2,14 @@ import Foundation
 import SwiftUI
 import Combine
 
-// MARK: - Session Group (ECG + HR + HRV file triplet)
-struct SessionGroup: Identifiable {
-    let id = UUID()
-    let sessionKey: String          // "2025-01-15_14-30-00"
-    var ecgURL: URL?
-    var hrURL:  URL?
-    var hrvURL: URL?
-
-    var allURLs: [URL] { [ecgURL, hrURL, hrvURL].compactMap { $0 } }
-
-    var sessionDate: Date {
-        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd_HH-mm-ss"
-        return f.date(from: sessionKey) ?? .distantPast
-    }
-
-    var displayName: String {
-        let f = DateFormatter(); f.dateStyle = .medium; f.timeStyle = .medium
-        return f.string(from: sessionDate)
-    }
-
-    var totalSizeString: String {
-        let bytes = allURLs.reduce(Int64(0)) { acc, url in
-            let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64) ?? 0
-            return acc + size
-        }
-        let fmt = ByteCountFormatter()
-        fmt.allowedUnits = [.useKB, .useMB]; fmt.countStyle = .file
-        return fmt.string(fromByteCount: bytes)
-    }
-}
-
-// MARK: - Event Marker
-class EventState: ObservableObject {
-    @Published var isEventMarked: Bool = false
-
-    @MainActor
-    func triggerEvent() { isEventMarked = true }
-}
-
 // MARK: - Storage Manager
-class StorageManager {
-    static let shared = StorageManager()
-    var eventState: EventState?
+public class StorageManager {
+    public static let shared = StorageManager()
+    public var eventState: EventState?
 
     private var ecgHandle: FileHandle?
     private var hrHandle:  FileHandle?
-    private var rrHandle:  FileHandle?          // NEW: HRV/RR file
+    private var rrHandle:  FileHandle?
 
     private var sessionStart: Date?
     private let splitInterval: TimeInterval = 3600
@@ -57,8 +18,8 @@ class StorageManager {
     private init() {}
 
     // MARK: - Session lifecycle
-    func startNewSession() { ioQ.async { self.internalStart() } }
-    func stopSession()      { ioQ.async { self.internalStop()  } }
+    public func startNewSession() { ioQ.async { self.internalStart() } }
+    public func stopSession()      { ioQ.async { self.internalStop()  } }
 
     private func internalStart() {
         internalStop()
@@ -98,7 +59,7 @@ class StorageManager {
     private var ecgEventTimestamp: UInt64? = nil
     private var hrEventTimestamp: UInt64? = nil
 
-    func markEvent() {
+    public func markEvent() {
         let ts = UInt64(Date().timeIntervalSince1970 * 1000)
         ioQ.async {
             self.ecgEventTimestamp = ts
@@ -119,7 +80,7 @@ class StorageManager {
     }
 
     // MARK: - Append helpers
-    func appendECG(timestamp: UInt64, microVolts: Int32) {
+    public func appendECG(timestamp: UInt64, microVolts: Int32) {
         ioQ.async {
             self.rotateIfNeeded()
             let tag = self.consumeEcgEventTag(for: timestamp)
@@ -127,7 +88,7 @@ class StorageManager {
         }
     }
 
-    func appendECGBatch(_ batch: [(UInt64, Int32)]) {
+    public func appendECGBatch(_ batch: [(UInt64, Int32)]) {
         ioQ.async {
             self.rotateIfNeeded()
             var chunk = ""
@@ -139,7 +100,7 @@ class StorageManager {
         }
     }
 
-    func appendHR(timestamp: UInt64, bpm: UInt8) {
+    public func appendHR(timestamp: UInt64, bpm: UInt8) {
         ioQ.async {
             let tag = self.consumeHrEventTag(for: timestamp)
             self.write("\(timestamp),\(bpm),\(tag)\n", to: self.hrHandle)
@@ -147,7 +108,7 @@ class StorageManager {
     }
 
     /// Writes RMSSD and raw RR intervals (ms) to a dedicated HRV file.
-    func appendRR(timestamp: UInt64, rrIntervals: [Int], rmssd: Double) {
+    public func appendRR(timestamp: UInt64, rrIntervals: [Int], rmssd: Double) {
         ioQ.async {
             let rrs = rrIntervals.map(String.init).joined(separator: ";")
             self.write("\(timestamp),\(String(format: "%.2f", rmssd)),\(rrs)\n", to: self.rrHandle)
@@ -160,14 +121,14 @@ class StorageManager {
     }
 
     // MARK: - File management
-    func getAllSavedFiles() -> [URL] {
+    public func getAllSavedFiles() -> [URL] {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let all  = (try? FileManager.default.contentsOfDirectory(at: docs, includingPropertiesForKeys: nil)) ?? []
         return all.filter { $0.pathExtension == "csv" }.sorted { $0.lastPathComponent > $1.lastPathComponent }
     }
 
     /// Groups ECG / HR / HRV files by session timestamp.
-    func getGroupedSessions() -> [SessionGroup] {
+    public func getGroupedSessions() -> [SessionGroup] {
         var groups: [String: SessionGroup] = [:]
         for url in getAllSavedFiles() {
             let name = url.deletingPathExtension().lastPathComponent
@@ -186,8 +147,8 @@ class StorageManager {
         return groups.values.filter { !$0.allURLs.isEmpty }.sorted { $0.sessionKey > $1.sessionKey }
     }
 
-    func deleteFile(at url: URL)            { try? FileManager.default.removeItem(at: url) }
-    func deleteGroup(_ g: SessionGroup) {
+    public func deleteFile(at url: URL)            { try? FileManager.default.removeItem(at: url) }
+    public func deleteGroup(_ g: SessionGroup) {
         g.allURLs.forEach { deleteFile(at: $0) }
         
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
